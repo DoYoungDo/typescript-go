@@ -19,6 +19,8 @@ import (
 )
 
 func runLSP(args []string) int {
+	fmt.Fprintln(os.Stderr, "[LSP] runLSP started")
+	
 	flag := flag.NewFlagSet("lsp", flag.ContinueOnError)
 	stdio := flag.Bool("stdio", false, "use stdio for communication")
 	pprofDir := flag.String("pprofDir", "", "Generate pprof CPU/memory profiles to the given directory.")
@@ -26,7 +28,9 @@ func runLSP(args []string) int {
 	_ = pipe
 	socket := flag.String("socket", "", "use socket for communication")
 	_ = socket
+	fmt.Fprintln(os.Stderr, "[LSP] flags parsed")
 	if err := flag.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "[LSP] flag parse error: %v\n", err)
 		return 2
 	}
 
@@ -41,10 +45,13 @@ func runLSP(args []string) int {
 		defer profileSession.Stop()
 	}
 
+	fmt.Fprintln(os.Stderr, "[LSP] initializing filesystem and paths")
 	fs := bundled.WrapFS(osvfs.FS())
 	defaultLibraryPath := bundled.LibPath()
 	typingsLocation := getGlobalTypingsCacheLocation()
+	fmt.Fprintf(os.Stderr, "[LSP] typingsLocation: %s\n", typingsLocation)
 
+	fmt.Fprintln(os.Stderr, "[LSP] creating LSP server")
 	s := lsp.NewServer(&lsp.ServerOptions{
 		In:                 lsp.ToReader(os.Stdin),
 		Out:                lsp.ToWriter(os.Stdout),
@@ -54,18 +61,23 @@ func runLSP(args []string) int {
 		DefaultLibraryPath: defaultLibraryPath,
 		TypingsLocation:    typingsLocation,
 		NpmInstall: func(cwd string, args []string) ([]byte, error) {
+			fmt.Fprintf(os.Stderr, "[LSP] npm install called with cwd: %s, args: %v\n", cwd, args)
 			cmd := exec.Command("npm", args...)
 			cmd.Dir = cwd
 			return cmd.Output()
 		},
 	})
 
+	fmt.Fprintln(os.Stderr, "[LSP] setting up signal context")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	fmt.Fprintln(os.Stderr, "[LSP] calling s.Run(ctx)")
 	if err := s.Run(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "[LSP] s.Run error: %v\n", err)
 		return 1
 	}
+	fmt.Fprintln(os.Stderr, "[LSP] runLSP completed successfully")
 	return 0
 }
 

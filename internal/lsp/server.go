@@ -15,6 +15,7 @@ import (
 	"github.com/go-json-experiment/json"
 	"github.com/microsoft/typescript-go/internal/collections"
 	"github.com/microsoft/typescript-go/internal/core"
+	"github.com/microsoft/typescript-go/internal/io/dcloud"
 	"github.com/microsoft/typescript-go/internal/jsonutil"
 	"github.com/microsoft/typescript-go/internal/locale"
 	"github.com/microsoft/typescript-go/internal/ls"
@@ -61,6 +62,7 @@ func NewServer(opts *ServerOptions) *Server {
 		parseCache:            opts.ParseCache,
 		npmInstall:            opts.NpmInstall,
 		initComplete:          make(chan struct{}),
+		dcloudServer:          dcloud.NewServer(),
 	}
 	s.logger = newLogger(s)
 
@@ -173,6 +175,8 @@ type Server struct {
 	parseCache *project.ParseCache
 
 	npmInstall func(cwd string, args []string) ([]byte, error)
+
+	dcloudServer *dcloud.Server
 }
 
 func (s *Server) Session() *project.Session { return s.session }
@@ -1008,6 +1012,16 @@ func (s *Server) handleTypeDefinition(ctx context.Context, ls *ls.LanguageServic
 }
 
 func (s *Server) handleCompletion(ctx context.Context, languageService *ls.LanguageService, params *lsproto.CompletionParams) (lsproto.CompletionResponse, error) {
+	dcloudLs := s.dcloudServer.GetProject(ctx, params.TextDocument.Uri.FileName()).GetLanguageService(languageService, params.TextDocument.Uri.FileName())
+	if dcloudLs != nil {
+		return dcloudLs.ProvideCompletion(
+			ctx,
+			params.TextDocument.Uri,
+			params.Position,
+			params.Context,
+		)
+	}
+
 	return languageService.ProvideCompletion(
 		ctx,
 		params.TextDocument.Uri,
