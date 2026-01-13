@@ -238,6 +238,9 @@ func (r *Resolver) ResolveModuleName(moduleName string, containingFile string, r
 	var result *ResolvedModule
 	switch moduleResolution {
 	case core.ModuleResolutionKindNode16, core.ModuleResolutionKindNodeNext, core.ModuleResolutionKindBundler:
+		// DCLOUD HOOK 
+		// TODO
+
 		state := newResolutionState(moduleName, containingDirectory, false /*isTypeReferenceDirective*/, resolutionMode, compilerOptions, redirectedReference, r, traceBuilder)
 		result = state.resolveNodeLike()
 	default:

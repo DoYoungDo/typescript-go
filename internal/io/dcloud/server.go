@@ -14,19 +14,22 @@ type Server struct {
 	projects map[string]*Project
 }
 
-func NewServer() *Server {	
-	return &Server{}
+func NewServer(session *project.Session) *Server {	
+	return &Server{
+		session: session,
+		projects: make(map[string]*Project),
+	}
 }
 
-func (s *Server) GetProject(ctx context.Context,fileName string) *Project {
-	_, project, err , _:= s.session.GetLanguageServiceAndProjectsForFile(ctx, lsproto.DocumentUri(fileName))
+func (s *Server) GetProject(ctx context.Context,uri lsproto.DocumentUri) *Project {
+	project, _, _, err := s.session.GetLanguageServiceAndProjectsForFile(ctx, uri)
 	if err != nil {
 		return nil
 	}
 
 	fsPath := project.GetProgram().GetCurrentDirectory()
 	if  s.projects[fsPath] == nil {
-		s.projects[fsPath] = NewProject(fsPath)
+		s.projects[fsPath] = NewProject(fsPath, s.session)
 		return s.projects[fsPath]
 	}
 	return s.projects[fsPath]

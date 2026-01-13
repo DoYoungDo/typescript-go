@@ -62,7 +62,6 @@ func NewServer(opts *ServerOptions) *Server {
 		parseCache:            opts.ParseCache,
 		npmInstall:            opts.NpmInstall,
 		initComplete:          make(chan struct{}),
-		dcloudServer:          dcloud.NewServer(),
 	}
 	s.logger = newLogger(s)
 
@@ -881,6 +880,8 @@ func (s *Server) handleInitialized(ctx context.Context, params *lsproto.Initiali
 		ParseCache:  s.parseCache,
 	})
 
+	s.dcloudServer = dcloud.NewServer(s.session)
+
 	userPreferences, err := s.RequestConfiguration(ctx)
 	if err != nil {
 		return err
@@ -1012,15 +1013,19 @@ func (s *Server) handleTypeDefinition(ctx context.Context, ls *ls.LanguageServic
 }
 
 func (s *Server) handleCompletion(ctx context.Context, languageService *ls.LanguageService, params *lsproto.CompletionParams) (lsproto.CompletionResponse, error) {
-	dcloudLs := s.dcloudServer.GetProject(ctx, params.TextDocument.Uri.FileName()).GetLanguageService(languageService, params.TextDocument.Uri.FileName())
-	if dcloudLs != nil {
-		return dcloudLs.ProvideCompletion(
-			ctx,
-			params.TextDocument.Uri,
-			params.Position,
-			params.Context,
-		)
+	dcloudProject := s.dcloudServer.GetProject(ctx, params.TextDocument.Uri)
+	if dcloudProject != nil  {
+		dcloudLs := dcloudProject.GetLanguageService(languageService, params.TextDocument.Uri.FileName())
+		if dcloudLs != nil {
+			return dcloudLs.ProvideCompletion(
+				ctx,
+				params.TextDocument.Uri,
+				params.Position,
+				params.Context,
+			)
+		}
 	}
+
 
 	return languageService.ProvideCompletion(
 		ctx,
