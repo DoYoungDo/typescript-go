@@ -26,6 +26,9 @@ import (
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
 	"github.com/microsoft/typescript-go/io/dcloud"
+
+	// 空白引用，注册插件
+	_ "github.com/microsoft/typescript-go/io/dcloud/plugins"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -1013,11 +1016,11 @@ func (s *Server) handleTypeDefinition(ctx context.Context, ls *ls.LanguageServic
 }
 
 func (s *Server) handleCompletion(ctx context.Context, languageService *ls.LanguageService, params *lsproto.CompletionParams) (lsproto.CompletionResponse, error) {
-	dcloudProject := s.dcloudServer.GetProject(ctx, params.TextDocument.Uri)
-	if dcloudProject != nil  {
-		dcloudLs := dcloudProject.GetLanguageService(languageService, params.TextDocument.Uri.FileName())
-		if dcloudLs != nil {
-			return dcloudLs.ProvideCompletion(
+	dcloudProject, dcloudLs, err := s.dcloudServer.GetProjectAndRootLanguageService(ctx, params.TextDocument.Uri)
+	if dcloudProject != nil  && dcloudLs != nil && err == nil {
+		fn := dcloudLs.GetProvideCompletion(languageService)
+		if fn != nil{
+			return fn(
 				ctx,
 				params.TextDocument.Uri,
 				params.Position,
@@ -1025,7 +1028,6 @@ func (s *Server) handleCompletion(ctx context.Context, languageService *ls.Langu
 			)
 		}
 	}
-
 
 	return languageService.ProvideCompletion(
 		ctx,

@@ -19,7 +19,7 @@ type compilerHost struct {
 }
 var _ compiler.CompilerHost = (*compilerHost)(nil)
 
-func newCompilerHost(
+func NewCompilerHost(
 	currentDirectory string,
 	fs vfs.FS,
 	defaultLibraryPath string,
