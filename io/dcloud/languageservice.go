@@ -1,0 +1,73 @@
+package dcloud
+
+import (
+	"github.com/microsoft/typescript-go/internal/ls"
+)
+
+type LanguageService interface {
+	*ls.LanguageService
+
+	// project *Project
+}
+
+// type CVFS struct{}
+// var _ VirtualFS = (*CVFS)(nil)
+// func (vfs *CVFS) FileExists(path string) bool {
+// 	if strings.HasSuffix(path, "app_virtual.d.ts") {
+// 		return true;
+// 	}
+// 	return  false;
+// }
+// func (vfs *CVFS) ReadFile(path string) (contents string, ok bool) {
+// 	if strings.HasSuffix(path, "app_virtual.d.ts") {
+// 		return "declare const DCloud_virtual: any;", true
+// 	}
+// 	return "", false
+// }
+
+// func (l *LanguageService) ProvideCompletion(
+// 	ctx context.Context,
+// 	documentURI lsproto.DocumentUri,
+// 	LSPPosition lsproto.Position,
+// 	context *lsproto.CompletionContext,
+// ) (lsproto.CompletionResponse, error) {
+
+// 	snapShot ,_ := l.session.Snapshot()
+// 	newLs := ls.NewLanguageService(l.GetProgram(), snapShot)
+// 	res, err :=newLs.ProvideCompletion(ctx, documentURI, LSPPosition, context)
+
+
+
+// 	program := l.GetProgram()
+// 	files:=append(program.CommandLine().ParsedConfig.FileNames, "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
+// 	opts := compiler.ProgramOptions{
+// 		Host: newCompilerHost(l.project.fsPath,NewVirtualFileSystem(&CVFS{}),"",nil,nil),
+// 		Config: tsoptions.NewParsedCommandLine(&core.CompilerOptions{},files,tspath.ComparePathsOptions{
+// 			UseCaseSensitiveFileNames :false,
+// 			CurrentDirectory:l.project.fsPath,
+// 		}),
+// 		// UseSourceOfProjectReference :program.UseCaseSensitiveFileNames(),
+// 		// SingleThreaded:program.Options().SingleThreaded,
+// 		// CreateCheckerPool:program.CreateCheckerPool,
+// 		// TypingsLocation:program.GetGlobalTypingsCacheLocation(),
+// 		// ProjectName:program.GetProjectName(),
+// 	}
+// 	// opts.Config.ParsedConfig.FileNames = append(opts.Config.ParsedConfig.FileNames, "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app.d.ts")
+
+// 	newProgram := compiler.NewProgram(opts)
+// 	newLs1 := ls.NewLanguageService(newProgram, snapShot)
+// 	res1, _ :=newLs1.ProvideCompletion(ctx, documentURI, lsproto.Position{Line: LSPPosition.Line, Character: LSPPosition.Character - 1}, context)
+	
+
+// 	// res, err := l.LanguageService.ProvideCompletion(ctx, documentURI, LSPPosition, context)
+
+// 	if res.List != nil {
+// 		kind := lsproto.CompletionItemKindSnippet
+// 		res.List.Items = append(res.List.Items, &lsproto.CompletionItem{
+// 			Label: "DCloud_Snippet",
+// 			Kind:  &kind,
+// 		})
+// 		res.List.Items = append(res.List.Items, res1.List.Items...)
+// 	}
+// 	return res, err
+// }
