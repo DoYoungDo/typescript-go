@@ -26,6 +26,7 @@
 - go中没有继续和代理，如果有接口的话还好，可能通过鸭子类型进行自定义类型传参,但是默认的LaguageService是类型，不是接口，lsp.Server中使用LanguageService的地方都是类型指针
 - 所以如果要实现自定义功能改动原始代码最小的位置就是在lsp.Server去handle对应的Api时，尝试做拦截
 
-## 进度
 
-- 实现了api拦截和追加
+## 下一步
+
+- 实现内存释放 参考`ProjectCollectionBuilder`中的释放逻辑
