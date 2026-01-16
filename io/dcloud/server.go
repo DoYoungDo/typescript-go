@@ -48,6 +48,21 @@ func (s *Server) GetProjectAndRootLanguageService(ctx context.Context,uri lsprot
 	return project, project.GetLanguageService(), nil
 }
 
+func (s *Server) DidOpenFile(ctx context.Context, uri lsproto.DocumentUri, version int32, content string, languageKind lsproto.LanguageKind) {
+
+}
+
+func (s *Server) DidCloseFile(ctx context.Context, uri lsproto.DocumentUri) {
+
+}
+
+func (s *Server) DidChangeFile(ctx context.Context, uri lsproto.DocumentUri, version int32, changes []lsproto.TextDocumentContentChangePartialOrWholeDocument) {
+
+}
+
+func (s *Server) DidSaveFile(ctx context.Context, uri lsproto.DocumentUri) {
+	
+}
 
 // var _ ls.CrossProjectOrchestrator = (*Server)(nil) 
 

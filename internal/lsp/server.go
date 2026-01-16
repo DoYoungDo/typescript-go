@@ -947,21 +947,25 @@ func (s *Server) handleDidChangeWorkspaceConfiguration(ctx context.Context, para
 }
 
 func (s *Server) handleDidOpen(ctx context.Context, params *lsproto.DidOpenTextDocumentParams) error {
+	s.dcloudServer.DidOpenFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.TextDocument.Text, params.TextDocument.LanguageId)
 	s.session.DidOpenFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.TextDocument.Text, params.TextDocument.LanguageId)
 	return nil
 }
 
 func (s *Server) handleDidChange(ctx context.Context, params *lsproto.DidChangeTextDocumentParams) error {
+	s.dcloudServer.DidChangeFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.ContentChanges)
 	s.session.DidChangeFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.ContentChanges)
 	return nil
 }
 
 func (s *Server) handleDidSave(ctx context.Context, params *lsproto.DidSaveTextDocumentParams) error {
+	s.dcloudServer.DidSaveFile(ctx, params.TextDocument.Uri)
 	s.session.DidSaveFile(ctx, params.TextDocument.Uri)
 	return nil
 }
 
 func (s *Server) handleDidClose(ctx context.Context, params *lsproto.DidCloseTextDocumentParams) error {
+	s.dcloudServer.DidCloseFile(ctx, params.TextDocument.Uri)
 	s.session.DidCloseFile(ctx, params.TextDocument.Uri)
 	return nil
 }
