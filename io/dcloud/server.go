@@ -6,19 +6,20 @@ import (
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
 	"github.com/microsoft/typescript-go/internal/project"
+	dis "github.com/microsoft/typescript-go/io/dcloud/disposable"
 )
 
 type Server struct {
 	session *project.Session
 
 	// 缓存所有项目
-	projects map[string]*Project
+	projects map[string]*dis.Box[*Project]
 }
 
 func NewServer(session *project.Session) *Server {	
 	return &Server{
 		session: session,
-		projects: make(map[string]*Project),
+		projects: make(map[string]*dis.Box[*Project]),
 	}
 }
 
@@ -32,11 +33,13 @@ func (s *Server) GetProject(ctx context.Context,uri lsproto.DocumentUri) (*Proje
 	p := projects[0]
 	fsPath := p.GetProgram().GetCurrentDirectory()
 
-	if  s.projects[fsPath] == nil {
-		s.projects[fsPath] = NewProject(fsPath, s)
-		return s.projects[fsPath], nil
+	// 当tsgo默认获取到了项目，此处恒创建
+	if entry := s.projects[fsPath]; entry == nil || entry.Value() == nil {
+		s.projects[fsPath] = dis.NewBox(NewProject(fsPath, s))
+		return s.projects[fsPath].Value(), nil
 	}
-	return s.projects[fsPath], nil
+	
+	return s.projects[fsPath].Value(), nil
 }
 
 func (s *Server) GetProjectAndRootLanguageService(ctx context.Context,uri lsproto.DocumentUri) (*Project, LanguageService, error) {
@@ -53,7 +56,7 @@ func (s *Server) DidOpenFile(ctx context.Context, uri lsproto.DocumentUri, versi
 }
 
 func (s *Server) DidCloseFile(ctx context.Context, uri lsproto.DocumentUri) {
-
+	// 当文件时闭，需要计算是否需要清理项目
 }
 
 func (s *Server) DidChangeFile(ctx context.Context, uri lsproto.DocumentUri, version int32, changes []lsproto.TextDocumentContentChangePartialOrWholeDocument) {
@@ -61,7 +64,7 @@ func (s *Server) DidChangeFile(ctx context.Context, uri lsproto.DocumentUri, ver
 }
 
 func (s *Server) DidSaveFile(ctx context.Context, uri lsproto.DocumentUri) {
-	
+
 }
 
 // var _ ls.CrossProjectOrchestrator = (*Server)(nil) 

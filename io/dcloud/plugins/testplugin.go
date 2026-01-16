@@ -10,11 +10,12 @@ import (
 	"github.com/microsoft/typescript-go/internal/tsoptions"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/io/dcloud"
+	dis "github.com/microsoft/typescript-go/io/dcloud/disposable"
 )
 
 type TestPlugin struct {
 	project *dcloud.Project
-	TestLs *TestPluginLanguageService
+	TestLs *dis.Box[*TestPluginLanguageService]
 }
 
 var _ dcloud.Plugin = (*TestPlugin)(nil)
@@ -23,6 +24,13 @@ func NewTestPlugin(project* dcloud.Project) (dcloud.Plugin ,error) {
 	return &TestPlugin{
 		project: project,
 	}, nil
+}
+
+func (p *TestPlugin) Dispose() {
+	if p.TestLs != nil {
+		p.TestLs.Delete()
+		p.TestLs = nil
+	}
 }
 
 func (p *TestPlugin) GetLanguageService(defaultLs *ls.LanguageService) dcloud.PluginLanguageService {
@@ -50,16 +58,16 @@ func (p *TestPlugin) GetLanguageService(defaultLs *ls.LanguageService) dcloud.Pl
 		// res.List.Items = append(res.List.Items)
 		// newRes, err := newLs.ProvideCompletion(ctx, documentURI, LSPPosition, context)
 		// return newRes, err
-		p.TestLs = &TestPluginLanguageService{
+		p.TestLs = dis.NewBox(&TestPluginLanguageService{
 			LanguageService: ls.NewLanguageService(newProgram, p.project.Server().GetDefaultHost()),
 			// LanguageService: defaultLs,
 			project: p.project,
-		}
+		})
 	} else {
-		program := p.TestLs.GetProgram()
-		program.UpdateProgram()
+		// program := p.TestLs.Value().GetProgram()
+		// program.UpdateProgram()
 	}
-	return  p.TestLs
+	return  p.TestLs.Value()
 }
 
 type TestPluginLanguageService struct {
@@ -67,6 +75,9 @@ type TestPluginLanguageService struct {
 	project *dcloud.Project
 }
 var _ dcloud.PluginLanguageService = (*TestPluginLanguageService)(nil)
+var _ dis.Disposable = (*TestPluginLanguageService)(nil)
+
+func (l *TestPluginLanguageService) Dispose() {}
 
 func (l *TestPluginLanguageService)	IsEnable(fileName lsproto.DocumentUri)bool{
 	return true
