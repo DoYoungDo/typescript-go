@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/internal/compiler"
-	"github.com/microsoft/typescript-go/internal/core"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
 	"github.com/microsoft/typescript-go/internal/tsoptions"
@@ -15,7 +14,7 @@ import (
 
 type TestPlugin struct {
 	project *dcloud.Project
-	TestLs dcloud.PluginLanguageService
+	TestLs *TestPluginLanguageService
 }
 
 var _ dcloud.Plugin = (*TestPlugin)(nil)
@@ -27,31 +26,45 @@ func NewTestPlugin(project* dcloud.Project) (dcloud.Plugin ,error) {
 }
 
 func (p *TestPlugin) GetLanguageService(defaultLs *ls.LanguageService) dcloud.PluginLanguageService {
-	program := defaultLs.GetProgram()
-	files:=append(program.CommandLine().ParsedConfig.FileNames, "/Users/doyoung/OtherProject/typescript-go/io/dcloud/test/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
-	opts := compiler.ProgramOptions{
-		Host: dcloud.NewCompilerHost(p.project.FsPath(),dcloud.NewVirtualFileSystem(&CVFS{}),"",nil,nil),
-		Config: tsoptions.NewParsedCommandLine(&core.CompilerOptions{},files,tspath.ComparePathsOptions{
-			UseCaseSensitiveFileNames :false,
-			CurrentDirectory:p.project.FsPath(),
-		}),
-		// UseSourceOfProjectReference :program.UseCaseSensitiveFileNames(),
-		// SingleThreaded:program.Options().SingleThreaded,
-		// CreateCheckerPool:program.CreateCheckerPool,
-		// TypingsLocation:program.GetGlobalTypingsCacheLocation(),
-		// ProjectName:program.GetProjectName(),
-	}
-	newProgram := compiler.NewProgram(opts)
-	// if p.TestLs == nil{
+	if p.TestLs == nil{
+		program := defaultLs.GetProgram()
+		files:=append(program.CommandLine().ParsedConfig.FileNames, "/Users/doyoung/OtherProject/typescript-go/io/dcloud/test/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
+		// files:=program.CommandLine().ParsedConfig.FileNames
+		opts := compiler.ProgramOptions{
+			Host: dcloud.NewCompilerHost(p.project.FsPath(),dcloud.NewVirtualFileSystem(&CVFS{}, program),"",nil,nil),
+			Config: tsoptions.NewParsedCommandLine(program.CommandLine().CompilerOptions(),files,tspath.ComparePathsOptions{
+				UseCaseSensitiveFileNames :false,
+				CurrentDirectory:p.project.FsPath(),
+			}),
+			// UseSourceOfProjectReference :program.UseCaseSensitiveFileNames(),
+			// SingleThreaded:program.Options().SingleThreaded,
+			// CreateCheckerPool:program.CreateCheckerPool,
+			// TypingsLocation:program.GetGlobalTypingsCacheLocation(),
+			// ProjectName:program.GetProjectName(),
+		}
+		newProgram := compiler.NewProgram(opts)
+		newProgram.BindSourceFiles()
+		// newLs := ls.NewLanguageService(newProgram, l.project.Server().GetDefaultHost())
+		// res , _:= defaultLs.ProvideCompletion(ctx, documentURI, LSPPosition, context)
+		// len(res.List.Items)
+		// res.List.Items = append(res.List.Items)
+		// newRes, err := newLs.ProvideCompletion(ctx, documentURI, LSPPosition, context)
+		// return newRes, err
 		p.TestLs = &TestPluginLanguageService{
 			LanguageService: ls.NewLanguageService(newProgram, p.project.Server().GetDefaultHost()),
+			// LanguageService: defaultLs,
+			project: p.project,
 		}
-	// }
+	} else {
+		program := p.TestLs.GetProgram()
+		program.UpdateProgram()
+	}
 	return  p.TestLs
 }
 
 type TestPluginLanguageService struct {
 	*ls.LanguageService
+	project *dcloud.Project
 }
 var _ dcloud.PluginLanguageService = (*TestPluginLanguageService)(nil)
 
@@ -59,7 +72,7 @@ func (l *TestPluginLanguageService)	IsEnable(fileName lsproto.DocumentUri)bool{
 	return true
 }
 
-func (l *TestPluginLanguageService)	GetProvideCompletion(ls *ls.LanguageService)(func(ctx context.Context,documentURI lsproto.DocumentUri,LSPPosition lsproto.Position,context *lsproto.CompletionContext) (lsproto.CompletionResponse, error)){
+func (l *TestPluginLanguageService)	GetProvideCompletion(defaultLs *ls.LanguageService)(func(ctx context.Context,documentURI lsproto.DocumentUri,LSPPosition lsproto.Position,context *lsproto.CompletionContext) (lsproto.CompletionResponse, error)){
 	return l.LanguageService.ProvideCompletion;
 }
 
