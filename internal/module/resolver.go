@@ -13,6 +13,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/packagejson"
 	"github.com/microsoft/typescript-go/internal/semver"
 	"github.com/microsoft/typescript-go/internal/tspath"
+	dcloudHook "github.com/microsoft/typescript-go/io/dcloud/hook"
 )
 
 type resolved struct {
@@ -239,10 +240,27 @@ func (r *Resolver) ResolveModuleName(moduleName string, containingFile string, r
 	switch moduleResolution {
 	case core.ModuleResolutionKindNode16, core.ModuleResolutionKindNodeNext, core.ModuleResolutionKindBundler:
 		// DCLOUD HOOK 
-		// TODO
-
 		state := newResolutionState(moduleName, containingDirectory, false /*isTypeReferenceDirective*/, resolutionMode, compilerOptions, redirectedReference, r, traceBuilder)
-		result = state.resolveNodeLike()
+		resolvers := dcloudHook.GetResolver(containingFile)
+		continueResolve := true
+		for _, resolver := range resolvers{
+			fileName, ext, isExt, ok := resolver.ResolveModuleName(moduleName, containingFile, resolutionMode, redirectedReference)
+			if ok{
+				resolved := &resolved{
+						path:                     fileName,
+						extension:                ext,
+						// packageId:                state.packageId,
+						// originalPath:             moduleName,
+						// resolvedUsingTsExtension: false,
+				}
+				result = state.createResolvedModule(resolved, isExt)
+				continueResolve = !ok
+			}
+		}
+
+		if continueResolve{
+			result = state.resolveNodeLike()
+		}
 	default:
 		panic(fmt.Sprintf("Unexpected moduleResolution: %d", moduleResolution))
 	}
