@@ -32,7 +32,7 @@ import (
 )
 
 type ProgramPlugin interface{
-	GetResolverPlugins() module.ResolverPlugin
+	GetResolverPlugins() []module.ResolverPlugin
 }
 
 type ProgramOptions struct {
@@ -46,7 +46,7 @@ type ProgramOptions struct {
 	JSDocParsingMode            ast.JSDocParsingMode
 
 	// Used by Dcloud
-	plugins []ProgramPlugin
+	Plugins []ProgramPlugin
 }
 
 func (p *ProgramOptions) canUseProjectReferenceSource() bool {

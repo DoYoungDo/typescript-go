@@ -108,10 +108,10 @@ func processAllProgramFiles(
 	loader.addProjectReferenceTasks(singleThreaded)
 	loader.resolver = module.NewResolver(loader.projectReferenceFileMapper.host, compilerOptions, opts.TypingsLocation, opts.ProjectName)
 
-	// install resolver plugins
+	// DCLOUD HOOK install resolver plugins
 	var resolverPlugins []module.ResolverPlugin
-	for _, plugin := range opts.plugins {
-		resolverPlugins = append(resolverPlugins, plugin.GetResolverPlugins())
+	for _, plugin := range opts.Plugins {
+		resolverPlugins = append(resolverPlugins, plugin.GetResolverPlugins()...)
 	}
 	loader.resolver.InstallPlugins(resolverPlugins)
 

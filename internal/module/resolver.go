@@ -221,10 +221,18 @@ func (r *Resolver) ResolveTypeReferenceDirective(
 func (r *Resolver) ResolveModuleName(moduleName string, containingFile string, resolutionMode core.ResolutionMode, redirectedReference ResolvedProjectReference) (*ResolvedModule, []DiagAndArgs) {
 	// DCLOUD HOOK
 	for _, plugin := range r.plugins {
+		// 防止死递归
+		if !plugin.IsEnable(){
+			continue
+		}
+
 		if resolveModuleName := plugin.GetResolveModuleName(); resolveModuleName != nil {
+			plugin.SetEnable(false)
 			if result, traces := resolveModuleName(moduleName, containingFile, resolutionMode, redirectedReference); result != nil {
+				plugin.SetEnable(true)
 				return result, traces
 			}
+			plugin.SetEnable(true)
 		}
 	}
 
@@ -2280,6 +2288,8 @@ func (r *resolutionState) getMatchedStarForPatternEntrypoint(file string, leadin
 }
 
 type ResolverPlugin interface{
+	IsEnable() bool
+	SetEnable(en bool)
 	GetResolveModuleName()(func(moduleName string, containingFile string, resolutionMode core.ResolutionMode, redirectedReference ResolvedProjectReference) (*ResolvedModule, []DiagAndArgs))
 }
 
