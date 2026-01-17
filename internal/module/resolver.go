@@ -244,7 +244,7 @@ func (r *Resolver) ResolveModuleName(moduleName string, containingFile string, r
 		resolvers := dcloudHook.GetResolver(containingFile)
 		continueResolve := true
 		for _, resolver := range resolvers{
-			fileName, ext, isExt, ok := resolver.ResolveModuleName(moduleName, containingFile, resolutionMode, redirectedReference)
+			fileName, ext, isExt, ok := resolver.Value().ResolveModuleName(moduleName, containingFile, resolutionMode, redirectedReference)
 			if ok{
 				resolved := &resolved{
 						path:                     fileName,

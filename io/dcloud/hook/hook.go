@@ -25,18 +25,14 @@ var _hook = sync.OnceValue(func() *hook {
 // 	_hook().resolvers = append(_hook().resolvers, resolver)
 // }
 
-func GetResolver(fileName string) []Resolver {
-	var resolvers []Resolver
-	var refResolvers []*dis.Box[Resolver]
+func GetResolver(fileName string) []*dis.Box[Resolver] {
 	hk := _hook()
+	var resolvers []*dis.Box[Resolver]
 	for _, resolver := range hk.resolvers {
-		if(resolver == nil || resolver.Value() == nil) {
-			continue
+		if resolver.Value() != nil {
+			resolvers = append(resolvers, resolver)
 		}
-		resolvers = append(resolvers, resolver.Value())
-		refResolvers = append(refResolvers, resolver)
 	}
-	hk.resolvers = refResolvers
-	
+	hk.resolvers = resolvers
 	return resolvers
 }
