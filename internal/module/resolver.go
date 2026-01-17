@@ -14,7 +14,6 @@ import (
 	"github.com/microsoft/typescript-go/internal/stringutil"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
-	dcloudHook "github.com/microsoft/typescript-go/io/dcloud/hook"
 )
 
 type resolved struct {
@@ -157,6 +156,8 @@ type Resolver struct {
 	typingsLocation string
 	projectName     string
 	// reportDiagnostic: DiagnosticReporter
+
+	plugins []ResolverPlugin
 }
 
 func NewResolver(
@@ -218,6 +219,15 @@ func (r *Resolver) ResolveTypeReferenceDirective(
 }
 
 func (r *Resolver) ResolveModuleName(moduleName string, containingFile string, resolutionMode core.ResolutionMode, redirectedReference ResolvedProjectReference) (*ResolvedModule, []DiagAndArgs) {
+	// DCLOUD HOOK
+	for _, plugin := range r.plugins {
+		if resolveModuleName := plugin.GetResolveModuleName(); resolveModuleName != nil {
+			if result, traces := resolveModuleName(moduleName, containingFile, resolutionMode, redirectedReference); result != nil {
+				return result, traces
+			}
+		}
+	}
+
 	traceBuilder := r.newTraceBuilder()
 	compilerOptions := GetCompilerOptionsWithRedirect(r.compilerOptions, redirectedReference)
 	if traceBuilder != nil {
@@ -240,28 +250,8 @@ func (r *Resolver) ResolveModuleName(moduleName string, containingFile string, r
 	var result *ResolvedModule
 	switch moduleResolution {
 	case core.ModuleResolutionKindNode16, core.ModuleResolutionKindNodeNext, core.ModuleResolutionKindBundler:
-		// DCLOUD HOOK 
 		state := newResolutionState(moduleName, containingDirectory, false /*isTypeReferenceDirective*/, resolutionMode, compilerOptions, redirectedReference, r, traceBuilder)
-		resolvers := dcloudHook.GetResolver(containingFile)
-		continueResolve := true
-		for _, resolver := range resolvers{
-			fileName, ext, isExt, ok := resolver.Value().ResolveModuleName(moduleName, containingFile, resolutionMode, redirectedReference)
-			if ok{
-				resolved := &resolved{
-						path:                     fileName,
-						extension:                ext,
-						// packageId:                state.packageId,
-						// originalPath:             moduleName,
-						// resolvedUsingTsExtension: false,
-				}
-				result = state.createResolvedModule(resolved, isExt)
-				continueResolve = !ok
-			}
-		}
-
-		if continueResolve{
-			result = state.resolveNodeLike()
-		}
+		result = state.resolveNodeLike()
 	default:
 		panic(fmt.Sprintf("Unexpected moduleResolution: %d", moduleResolution))
 	}
@@ -2287,4 +2277,12 @@ func (r *resolutionState) getMatchedStarForPatternEntrypoint(file string, leadin
 	}
 
 	return "", false
+}
+
+type ResolverPlugin interface{
+	GetResolveModuleName()(func(moduleName string, containingFile string, resolutionMode core.ResolutionMode, redirectedReference ResolvedProjectReference) (*ResolvedModule, []DiagAndArgs))
+}
+
+func (r *Resolver) InstallPlugins(plugins []ResolverPlugin) {
+	r.plugins = append(r.plugins, plugins...)
 }

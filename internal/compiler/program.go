@@ -31,6 +31,10 @@ import (
 	"github.com/microsoft/typescript-go/internal/tspath"
 )
 
+type ProgramPlugin interface{
+	GetResolverPlugins() module.ResolverPlugin
+}
+
 type ProgramOptions struct {
 	Host                        CompilerHost
 	Config                      *tsoptions.ParsedCommandLine
@@ -40,6 +44,9 @@ type ProgramOptions struct {
 	TypingsLocation             string
 	ProjectName                 string
 	JSDocParsingMode            ast.JSDocParsingMode
+
+	// Used by Dcloud
+	plugins []ProgramPlugin
 }
 
 func (p *ProgramOptions) canUseProjectReferenceSource() bool {
