@@ -4,9 +4,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dlclark/regexp2"
 	"github.com/microsoft/typescript-go/internal/core"
 	"github.com/microsoft/typescript-go/internal/modulespecifiers"
 	"github.com/microsoft/typescript-go/internal/tsoptions"
+	"github.com/microsoft/typescript-go/internal/vfs"
 )
 
 func NewDefaultUserPreferences() *UserPreferences {
@@ -16,7 +18,6 @@ func NewDefaultUserPreferences() *UserPreferences {
 
 		AllowRenameOfImportPath:            core.TSTrue,
 		ProvideRefactorNotApplicableReason: true,
-		IncludeCompletionsWithSnippetText:  core.TSTrue,
 		DisplayPartsForJSDoc:               true,
 		DisableLineTextInReferences:        true,
 		ReportStyleChecksAsWarnings:        true,
@@ -46,8 +47,6 @@ type UserPreferences struct {
 	// on potentially-null and potentially-undefined values, with insertion text to replace
 	// preceding `.` tokens with `?.`.
 	IncludeAutomaticOptionalChainCompletions core.Tristate
-	// Allows completions to be formatted with snippet text, indicated by `CompletionItem["isSnippet"]`.
-	IncludeCompletionsWithSnippetText core.Tristate // !!!
 	// If enabled, completions for class members (e.g. methods and properties) will include
 	// a whole declaration for the member.
 	// E.g., `class A { f| }` could be completed to `class A { foo(): number {} }`, instead of
@@ -362,6 +361,13 @@ func (p *UserPreferences) CopyOrDefault() *UserPreferences {
 	return p.Copy()
 }
 
+func (p *UserPreferences) OrDefault() *UserPreferences {
+	if p == nil {
+		return NewDefaultUserPreferences()
+	}
+	return p
+}
+
 func (p *UserPreferences) ModuleSpecifierPreferences() modulespecifiers.UserPreferences {
 	return modulespecifiers.UserPreferences{
 		ImportModuleSpecifierPreference:   p.ImportModuleSpecifierPreference,
@@ -639,8 +645,6 @@ func (p *UserPreferences) set(name string, value any) {
 		p.IncludeCompletionsForImportStatements = tsoptions.ParseTristate(value)
 	case "includeautomaticoptionalchaincompletions":
 		p.IncludeAutomaticOptionalChainCompletions = tsoptions.ParseTristate(value)
-	case "includecompletionswithsnippettext":
-		p.IncludeCompletionsWithSnippetText = tsoptions.ParseTristate(value)
 	case "includecompletionswithclassmembersnippets":
 		p.IncludeCompletionsWithClassMemberSnippets = tsoptions.ParseTristate(value)
 	case "includecompletionswithobjectliteralmethodsnippets":
@@ -718,4 +722,27 @@ func (p *UserPreferences) set(name string, value any) {
 	case "implementationscodelensshowonallclassmethods":
 		p.CodeLens.ImplementationsCodeLensShowOnAllClassMethods = parseBoolWithDefault(value, false)
 	}
+}
+
+func (p *UserPreferences) ParsedAutoImportFileExcludePatterns(useCaseSensitiveFileNames bool) []*regexp2.Regexp {
+	if len(p.AutoImportFileExcludePatterns) == 0 {
+		return nil
+	}
+	var patterns []*regexp2.Regexp
+	for _, spec := range p.AutoImportFileExcludePatterns {
+		pattern := vfs.GetSubPatternFromSpec(spec, "", vfs.UsageExclude, vfs.WildcardMatcher{})
+		if pattern != "" {
+			if re := vfs.GetRegexFromPattern(pattern, useCaseSensitiveFileNames); re != nil {
+				patterns = append(patterns, re)
+			}
+		}
+	}
+	return patterns
+}
+
+func (p *UserPreferences) IsModuleSpecifierExcluded(moduleSpecifier string) bool {
+	if modulespecifiers.IsExcludedByRegex(moduleSpecifier, p.AutoImportSpecifierExcludeRegexes) {
+		return true
+	}
+	return false
 }

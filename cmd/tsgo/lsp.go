@@ -19,8 +19,6 @@ import (
 )
 
 func runLSP(args []string) int {
-	fmt.Fprintln(os.Stderr, "[LSP] runLSP started")
-	
 	flag := flag.NewFlagSet("lsp", flag.ContinueOnError)
 	stdio := flag.Bool("stdio", false, "use stdio for communication")
 	pprofDir := flag.String("pprofDir", "", "Generate pprof CPU/memory profiles to the given directory.")
@@ -28,9 +26,7 @@ func runLSP(args []string) int {
 	_ = pipe
 	socket := flag.String("socket", "", "use socket for communication")
 	_ = socket
-	fmt.Fprintln(os.Stderr, "[LSP] flags parsed")
 	if err := flag.Parse(args); err != nil {
-		fmt.Fprintf(os.Stderr, "[LSP] flag parse error: %v\n", err)
 		return 2
 	}
 
@@ -45,13 +41,10 @@ func runLSP(args []string) int {
 		defer profileSession.Stop()
 	}
 
-	fmt.Fprintln(os.Stderr, "[LSP] initializing filesystem and paths")
 	fs := bundled.WrapFS(osvfs.FS())
 	defaultLibraryPath := bundled.LibPath()
 	typingsLocation := getGlobalTypingsCacheLocation()
-	fmt.Fprintf(os.Stderr, "[LSP] typingsLocation: %s\n", typingsLocation)
 
-	fmt.Fprintln(os.Stderr, "[LSP] creating LSP server")
 	s := lsp.NewServer(&lsp.ServerOptions{
 		In:                 lsp.ToReader(os.Stdin),
 		Out:                lsp.ToWriter(os.Stdout),
@@ -61,89 +54,33 @@ func runLSP(args []string) int {
 		DefaultLibraryPath: defaultLibraryPath,
 		TypingsLocation:    typingsLocation,
 		NpmInstall: func(cwd string, args []string) ([]byte, error) {
-			fmt.Fprintf(os.Stderr, "[LSP] npm install called with cwd: %s, args: %v\n", cwd, args)
 			cmd := exec.Command("npm", args...)
 			cmd.Dir = cwd
 			return cmd.Output()
 		},
 	})
 
-	fmt.Fprintln(os.Stderr, "[LSP] setting up signal context")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	fmt.Fprintln(os.Stderr, "[LSP] calling s.Run(ctx)")
 	if err := s.Run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "[LSP] s.Run error: %v\n", err)
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	fmt.Fprintln(os.Stderr, "[LSP] runLSP completed successfully")
 	return 0
 }
 
 func getGlobalTypingsCacheLocation() string {
-	switch runtime.GOOS {
-	case "windows":
-		return tspath.CombinePaths(tspath.CombinePaths(getWindowsCacheLocation(), "Microsoft/TypeScript"), core.VersionMajorMinor())
-	case "openbsd", "freebsd", "netbsd", "darwin", "linux", "android":
-		return tspath.CombinePaths(tspath.CombinePaths(getNonWindowsCacheLocation(), "typescript"), core.VersionMajorMinor())
-	default:
-		panic("unsupported platform: " + runtime.GOOS)
-	}
-}
-
-func getWindowsCacheLocation() string {
-	basePath, err := os.UserCacheDir()
+	cacheDir, err := os.UserCacheDir()
 	if err != nil {
-		if basePath, err = os.UserConfigDir(); err != nil {
-			if basePath, err = os.UserHomeDir(); err != nil {
-				if userProfile := os.Getenv("USERPROFILE"); userProfile != "" {
-					basePath = userProfile
-				} else if homeDrive, homePath := os.Getenv("HOMEDRIVE"), os.Getenv("HOMEPATH"); homeDrive != "" && homePath != "" {
-					basePath = homeDrive + homePath
-				} else {
-					basePath = os.TempDir()
-				}
-			}
-		}
+		cacheDir = os.TempDir()
 	}
-	return basePath
-}
 
-func getNonWindowsCacheLocation() string {
-	if xdgCacheHome := os.Getenv("XDG_CACHE_HOME"); xdgCacheHome != "" {
-		return xdgCacheHome
-	}
-	const platformIsDarwin = runtime.GOOS == "darwin"
-	var usersDir string
-	if platformIsDarwin {
-		usersDir = "Users"
+	var subdir string
+	if runtime.GOOS == "windows" {
+		subdir = "Microsoft/TypeScript"
 	} else {
-		usersDir = "home"
+		subdir = "typescript"
 	}
-	homePath, err := os.UserHomeDir()
-	if err != nil {
-		if home := os.Getenv("HOME"); home != "" {
-			homePath = home
-		} else {
-			var userName string
-			if logName := os.Getenv("LOGNAME"); logName != "" {
-				userName = logName
-			} else if user := os.Getenv("USER"); user != "" {
-				userName = user
-			}
-			if userName != "" {
-				homePath = "/" + usersDir + "/" + userName
-			} else {
-				homePath = os.TempDir()
-			}
-		}
-	}
-	var cacheFolder string
-	if platformIsDarwin {
-		cacheFolder = "Library/Caches"
-	} else {
-		cacheFolder = ".cache"
-	}
-	return tspath.CombinePaths(homePath, cacheFolder)
+	return tspath.CombinePaths(cacheDir, subdir, core.VersionMajorMinor())
 }
