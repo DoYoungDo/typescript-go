@@ -4,9 +4,13 @@ import (
 	"context"
 	"strings"
 
+	"github.com/microsoft/typescript-go/internal/ast"
+	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/compiler"
+	"github.com/microsoft/typescript-go/internal/core"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
+	"github.com/microsoft/typescript-go/internal/module"
 	"github.com/microsoft/typescript-go/internal/tsoptions"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/io/dcloud"
@@ -33,11 +37,57 @@ func (p *TestPlugin) Dispose() {
 	}
 }
 
+type testProgramPlugin struct{
+	resolverPlugins []module.ResolverPlugin
+	checkerPlugins []checker.CheckerPlugin
+}
+var _ compiler.ProgramPlugin = (*testProgramPlugin)(nil)
+func (t *testProgramPlugin) GetResolverPlugins() []module.ResolverPlugin{
+	return t.resolverPlugins
+}
+func (t *testProgramPlugin) GetCheckerPlugins() []checker.CheckerPlugin{
+	return t.checkerPlugins
+}
+
+
+type testResolverPlugin struct{
+	enable bool
+}
+var _ module.ResolverPlugin = (*testResolverPlugin)(nil)
+func (t *testResolverPlugin) GetResolveModuleName()(func(moduleName string, containingFile string, resolutionMode core.ResolutionMode, redirectedReference module.ResolvedProjectReference) (*module.ResolvedModule, []module.DiagAndArgs)){
+	return nil
+}
+func (t *testResolverPlugin) IsEnable() bool{
+	return t.enable
+}
+func (t *testResolverPlugin) SetEnable(en bool){
+	t.enable = en;
+}
+
+
+type testCheckerPlugin struct{
+	enable bool
+}
+var _ checker.CheckerPlugin = (*testCheckerPlugin)(nil)
+func (t *testCheckerPlugin) IsEnable() bool{
+	return t.enable
+}
+func (t *testCheckerPlugin) SetEnable(en bool){
+	t.enable = en;
+}
+func (t *testCheckerPlugin) GetCheckExpressionWorker()(func(node *ast.Node, checkMode checker.CheckMode) *checker.Type){
+	return nil
+}
+
 func (p *TestPlugin) GetLanguageService(defaultLs *ls.LanguageService) dcloud.PluginLanguageService {
 	if p.TestLs == nil{
 		program := defaultLs.GetProgram()
-		files:=append(program.CommandLine().ParsedConfig.FileNames, "/Users/doyoung/OtherProject/typescript-go/io/dcloud/test/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
+		files := append(program.CommandLine().ParsedConfig.FileNames, "/Users/doyoung/OtherProject/typescript-go/io/dcloud/test/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
 		// files:=program.CommandLine().ParsedConfig.FileNames
+		programPlugin := &testProgramPlugin{
+			resolverPlugins: []module.ResolverPlugin{&testResolverPlugin{enable: true}},
+			checkerPlugins: []checker.CheckerPlugin{&testCheckerPlugin{enable: true}},
+		}
 		opts := compiler.ProgramOptions{
 			Host: dcloud.NewCompilerHost(p.project.FsPath(),dcloud.NewVirtualFileSystem(&CVFS{}, program),"",nil,nil),
 			Config: tsoptions.NewParsedCommandLine(program.CommandLine().CompilerOptions(),files,tspath.ComparePathsOptions{
@@ -49,6 +99,7 @@ func (p *TestPlugin) GetLanguageService(defaultLs *ls.LanguageService) dcloud.Pl
 			// CreateCheckerPool:program.CreateCheckerPool,
 			// TypingsLocation:program.GetGlobalTypingsCacheLocation(),
 			// ProjectName:program.GetProjectName(),
+			Plugins: []compiler.ProgramPlugin{programPlugin},
 		}
 		newProgram := compiler.NewProgram(opts)
 		newProgram.BindSourceFiles()
