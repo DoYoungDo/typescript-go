@@ -95,7 +95,7 @@ func (p *Project) init()  {
 	creators := GetPluginCreators()
 	for pluginId, creator := range creators {
 		plugin, err := creator(p)
-		if err != nil {
+		if err != nil || plugin == nil {
 			continue
 		}
 		p.plugins[pluginId] = dis.NewBox(plugin)
