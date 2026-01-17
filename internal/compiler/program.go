@@ -33,6 +33,7 @@ import (
 
 type ProgramPlugin interface{
 	GetResolverPlugins() []module.ResolverPlugin
+	GetCheckerPlugins() []checker.CheckerPlugin
 }
 
 type ProgramOptions struct {

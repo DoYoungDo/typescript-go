@@ -559,6 +559,11 @@ type Host interface {
 	modulespecifiers.ModuleSpecifierGenerationHost
 }
 
+type CheckerPlugin interface{
+	IsEnable() bool
+	SetEnable(en bool)
+	GetCheckExpressionWorker()(func(node *ast.Node, checkMode CheckMode) *Type)
+}
 // Checker
 
 var nextCheckerID atomic.Uint32
@@ -868,6 +873,8 @@ type Checker struct {
 	ambientModules                              []*ast.Symbol
 	withinUnreachableCode                       bool
 	reportedUnreachableNodes                    collections.Set[*ast.Node]
+
+	plugins []CheckerPlugin
 
 	mu sync.Mutex
 }
@@ -7500,6 +7507,22 @@ func getUniqueTypeParameterName(typeParameters []*Type, baseName string) string 
 }
 
 func (c *Checker) checkExpressionWorker(node *ast.Node, checkMode CheckMode) *Type {
+	// DCLOUD HOOK
+	for _, plugin := range c.plugins{
+		// 防止死递归
+		if !plugin.IsEnable(){
+			continue
+		}
+		if get := plugin.GetCheckExpressionWorker(); get != nil{
+			plugin.SetEnable(false)
+			if tp := get(node, checkMode); tp != nil{
+				plugin.SetEnable(true)
+				return tp
+			}
+			plugin.SetEnable(true)
+		}
+	}
+
 	switch node.Kind {
 	case ast.KindIdentifier:
 		return c.checkIdentifier(node, checkMode)
@@ -31149,4 +31172,8 @@ func (c *Checker) GetEmitResolver() *EmitResolver {
 
 func (c *Checker) GetAliasedSymbol(symbol *ast.Symbol) *ast.Symbol {
 	return c.resolveAlias(symbol)
+}
+
+func (c *Checker) InstallPlugins(plugins []CheckerPlugin){
+	c.plugins = append(c.plugins, plugins...)
 }

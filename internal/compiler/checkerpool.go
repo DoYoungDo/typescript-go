@@ -74,6 +74,13 @@ func (p *checkerPool) createCheckers() {
 		for i := range checkerCount {
 			wg.Queue(func() {
 				p.checkers[i], p.locks[i] = checker.NewChecker(p.program)
+
+				// DCLOUD HOOK install type checker plugin
+				var checkerPlugins []checker.CheckerPlugin
+				for _, plugin := range p.program.opts.Plugins{
+					checkerPlugins = append(checkerPlugins, plugin.GetCheckerPlugins()...)
+				}
+				p.checkers[i].InstallPlugins(checkerPlugins)
 			})
 		}
 
