@@ -16,6 +16,8 @@ type compilerHost struct {
 	defaultLibraryPath  string
 	extendedConfigCache tsoptions.ExtendedConfigCache
 	trace               func(msg *diagnostics.Message, args ...any)
+
+	reusedProgram		*compiler.Program
 }
 var _ compiler.CompilerHost = (*compilerHost)(nil)
 
@@ -25,6 +27,7 @@ func NewCompilerHost(
 	defaultLibraryPath string,
 	extendedConfigCache tsoptions.ExtendedConfigCache,
 	trace func(msg *diagnostics.Message, args ...any),
+	reusedProgram *compiler.Program,
 ) *compilerHost {
 	if trace == nil {
 		trace = func(msg *diagnostics.Message, args ...any) {}
@@ -55,6 +58,13 @@ func (h *compilerHost) Trace(msg *diagnostics.Message, args ...any) {
 }
 
 func (h *compilerHost) GetSourceFile(opts ast.SourceFileParseOptions) *ast.SourceFile {
+	// 如果有重用的program，尝试从program中获取已经存在的sourceFile
+	if h.reusedProgram != nil {
+		if ast := h.reusedProgram.GetSourceFileByPath(opts.Path); ast != nil {
+			return ast;
+		}
+	}
+
 	text, ok := h.FS().ReadFile(opts.FileName)
 	if !ok {
 		return nil

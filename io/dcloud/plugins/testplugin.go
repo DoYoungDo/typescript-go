@@ -89,7 +89,7 @@ func (p *TestPlugin) GetLanguageService(defaultLs *ls.LanguageService) dcloud.Pl
 			checkerPlugins: []checker.CheckerPlugin{&testCheckerPlugin{enable: true}},
 		}
 		opts := compiler.ProgramOptions{
-			Host: dcloud.NewCompilerHost(p.project.FsPath(),dcloud.NewVirtualFileSystem(&CVFS{}, program),"",nil,nil),
+			Host: dcloud.NewCompilerHost(p.project.FsPath(),dcloud.NewVirtualFileSystem(&CVFS{}, program),"",nil,nil, program),
 			Config: tsoptions.NewParsedCommandLine(program.CommandLine().CompilerOptions(),files,tspath.ComparePathsOptions{
 				UseCaseSensitiveFileNames :false,
 				CurrentDirectory:p.project.FsPath(),
