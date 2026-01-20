@@ -29,4 +29,4 @@
 
 ## 下一步
 
-- 实现内存释放 参考`ProjectCollectionBuilder`中的释放逻辑
+-[x] 实现内存释放 参考`ProjectCollectionBuilder`中的释放逻辑
