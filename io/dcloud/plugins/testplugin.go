@@ -110,7 +110,8 @@ func (p *TestPlugin) GetLanguageService(defaultLs *ls.LanguageService) dcloud.Pl
 		// newRes, err := newLs.ProvideCompletion(ctx, documentURI, LSPPosition, context)
 		// return newRes, err
 		p.TestLs = dis.NewBox(&TestPluginLanguageService{
-			LanguageService: ls.NewLanguageService(tspath.Path(p.project.FsPath()), newProgram, p.project.Server().GetDefaultHost()),
+			LanguageService: p.project.NewLanguageService(newProgram),
+			// LanguageService: ls.NewLanguageService(tspath.Path(p.project.FsPath()), newProgram, p.project.Server().GetDefaultHost()),
 			// LanguageService: defaultLs,
 			project: p.project,
 		})

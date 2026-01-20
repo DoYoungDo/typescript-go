@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
 	dis "github.com/microsoft/typescript-go/io/dcloud/disposable"
@@ -52,6 +53,7 @@ const (
 	UniApp ProjectKind = "uni-app"
 )
 
+type NewLS func(program *compiler.Program)*ls.LanguageService
 type Project struct {
 	server *Server
 
@@ -60,15 +62,19 @@ type Project struct {
 
 	rootLanguageService *dis.Box[*RoutuerLanguageService]
 	plugins map[string]*dis.Box[Plugin]
+
+	newLs NewLS
 }
 var _ dis.Disposable = (*Project)(nil)
 
-func NewProject(fsPath string, server *Server) *Project {
+func NewProject(fsPath string, server *Server, newLs NewLS) *Project {
 	project := &Project{
 		server: server,
 
 		fsPath: fsPath,
 		plugins: make(map[string]*dis.Box[Plugin]),
+
+		newLs: newLs,
 	}
 
 	project.rootLanguageService = dis.NewBox(&RoutuerLanguageService{
@@ -132,15 +138,19 @@ func (p *Project) GetPlugins() []Plugin{
 	}
 	return plugins
 }
+
 func (p *Project) GetPlugin(pluginId string) Plugin{
 	return p.plugins[pluginId].Value()
+}
+
+func (p *Project) NewLanguageService(program *compiler.Program)* ls.LanguageService{
+	return p.newLs(program)
 }
 
 type RoutuerLanguageService struct {
 	project *Project
 }
 var _ LanguageService = (*RoutuerLanguageService)(nil)
-var _ dis.Disposable = (*RoutuerLanguageService)(nil)
 
 func (r*RoutuerLanguageService)Dispose(){}
 

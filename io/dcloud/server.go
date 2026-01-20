@@ -3,6 +3,7 @@ package dcloud
 import (
 	"context"
 
+	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
 	"github.com/microsoft/typescript-go/internal/project"
@@ -24,18 +25,15 @@ func NewServer(session *project.Session) *Server {
 }
 
 func (s *Server) GetProject(ctx context.Context,uri lsproto.DocumentUri) (*Project, error) {
-	projects, err := s.GetProjectsForFile(ctx, uri)
-
-	if err != nil || len(projects) == 0 {
-		return nil, err
-	}
-
-	p := projects[0]
-	fsPath := p.GetProgram().GetCurrentDirectory()
+	project, snapShot := s.GetDefaultProjectAndSnapShot(uri)
+	fsPath := project.GetProgram().GetCurrentDirectory()
 
 	// 当tsgo默认获取到了项目，此处恒创建
 	if entry := s.projects[fsPath]; entry == nil || entry.Value() == nil {
-		s.projects[fsPath] = dis.NewBox(NewProject(fsPath, s))
+		s.projects[fsPath] = dis.NewBox(NewProject(fsPath, s, func(program *compiler.Program)*ls.LanguageService{
+			return ls.NewLanguageService(project.ConfigFilePath(), program, snapShot)
+		}))
+
 		return s.projects[fsPath].Value(), nil
 	}
 	
@@ -67,29 +65,8 @@ func (s *Server) DidSaveFile(ctx context.Context, uri lsproto.DocumentUri) {
 
 }
 
-// var _ ls.CrossProjectOrchestrator = (*Server)(nil) 
-
-// func (s *Server) GetDefaultProject() ls.Project{
-// 	s.session.GetLanguageServiceAndProjectsForFile()
-// }
-
-// func (s *Server)GetAllProjectsForInitialRequest() []ls.Project{
-
-// }
-
-// func (s *Server)GetLanguageServiceForProjectWithFile(ctx context.Context, project ls.Project, uri lsproto.DocumentUri) *ls.LanguageService {
-	
-// }
-
-func (s *Server)GetProjectsForFile(ctx context.Context, uri lsproto.DocumentUri) ([]ls.Project, error){
-	return s.session.GetProjectsForFile(ctx, uri)
-}
-
-func (s *Server)GetDefaultHost()ls.Host{
+func (s *Server) GetDefaultProjectAndSnapShot(uri lsproto.DocumentUri)(*project.Project, *project.Snapshot){
 	snapShot, _ := s.session.Snapshot()
-	return snapShot
+	project := snapShot.GetDefaultProject(uri)
+	return project, snapShot
 }
-
-// func (s *Server)GetProjectsLoadingProjectTree(ctx context.Context, requestedProjectTrees *collections.Set[tspath.Path]) iter.Seq[ls.Project]{
-
-// }
