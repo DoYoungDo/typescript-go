@@ -10,7 +10,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
 )
-type compilerHost struct {
+type CompilerHost struct {
 	currentDirectory    string
 	fs                  vfs.FS
 	defaultLibraryPath  string
@@ -19,7 +19,7 @@ type compilerHost struct {
 
 	reusedProgram		*compiler.Program
 }
-var _ compiler.CompilerHost = (*compilerHost)(nil)
+var _ compiler.CompilerHost = (*CompilerHost)(nil)
 
 func NewCompilerHost(
 	currentDirectory string,
@@ -28,11 +28,11 @@ func NewCompilerHost(
 	extendedConfigCache tsoptions.ExtendedConfigCache,
 	trace func(msg *diagnostics.Message, args ...any),
 	reusedProgram *compiler.Program,
-) *compilerHost {
+) *CompilerHost {
 	if trace == nil {
 		trace = func(msg *diagnostics.Message, args ...any) {}
 	}
-	return &compilerHost{
+	return &CompilerHost{
 		currentDirectory:    currentDirectory,
 		fs:                  fs,
 		defaultLibraryPath:  defaultLibraryPath,
@@ -41,23 +41,23 @@ func NewCompilerHost(
 	}
 }
 
-func (h *compilerHost) FS() vfs.FS {
+func (h *CompilerHost) FS() vfs.FS {
 	return h.fs
 }
 
-func (h *compilerHost) DefaultLibraryPath() string {
+func (h *CompilerHost) DefaultLibraryPath() string {
 	return h.defaultLibraryPath
 }
 
-func (h *compilerHost) GetCurrentDirectory() string {
+func (h *CompilerHost) GetCurrentDirectory() string {
 	return h.currentDirectory
 }
 
-func (h *compilerHost) Trace(msg *diagnostics.Message, args ...any) {
+func (h *CompilerHost) Trace(msg *diagnostics.Message, args ...any) {
 	h.trace(msg, args...)
 }
 
-func (h *compilerHost) GetSourceFile(opts ast.SourceFileParseOptions) *ast.SourceFile {
+func (h *CompilerHost) GetSourceFile(opts ast.SourceFileParseOptions) *ast.SourceFile {
 	// 如果有重用的program，尝试从program中获取已经存在的sourceFile
 	if h.reusedProgram != nil {
 		if ast := h.reusedProgram.GetSourceFileByPath(opts.Path); ast != nil {
@@ -72,7 +72,7 @@ func (h *compilerHost) GetSourceFile(opts ast.SourceFileParseOptions) *ast.Sourc
 	return parser.ParseSourceFile(opts, text, core.GetScriptKindFromFileName(opts.FileName))
 }
 
-func (h *compilerHost) GetResolvedProjectReference(fileName string, path tspath.Path) *tsoptions.ParsedCommandLine {
+func (h *CompilerHost) GetResolvedProjectReference(fileName string, path tspath.Path) *tsoptions.ParsedCommandLine {
 	commandLine, _ := tsoptions.GetParsedCommandLineOfConfigFilePath(fileName, path, nil, nil /*optionsRaw*/, h, h.extendedConfigCache)
 	return commandLine
 }
