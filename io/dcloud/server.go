@@ -25,18 +25,19 @@ func NewServer(session *project.Session) *Server {
 }
 
 func (s *Server) GetProject(ctx context.Context,uri lsproto.DocumentUri) (*Project, error) {
-	project, snapShot := s.GetDefaultProjectAndSnapShot(uri)
-	fsPath := project.GetProgram().GetCurrentDirectory()
+	p, _ := s.GetDefaultProjectAndSnapShot(uri)
+	fsPath := p.GetProgram().GetCurrentDirectory()
+	configFilePath := p.ConfigFilePath()
 
 	// 当tsgo默认获取到了项目，此处恒创建
 	if entry := s.projects[fsPath]; entry == nil || entry.Value() == nil {
-		s.projects[fsPath] = dis.NewBox(NewProject(fsPath, s, func(program *compiler.Program)*ls.LanguageService{
-			return ls.NewLanguageService(project.ConfigFilePath(), program, snapShot)
+		s.projects[fsPath] = dis.NewBox(NewProject(s, configFilePath, fsPath, func(program *compiler.Program, host ls.Host)*ls.LanguageService{
+			return ls.NewLanguageService(configFilePath, program, host)
 		}))
 
 		return s.projects[fsPath].Value(), nil
 	}
-	
+
 	return s.projects[fsPath].Value(), nil
 }
 

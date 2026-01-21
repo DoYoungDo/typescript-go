@@ -10,5 +10,6 @@ import (
 
 type LanguageService interface {
 	disposable.Disposable
+	GetHost() *LanguageServiceHost
 	GetProvideCompletion(defaultLs *ls.LanguageService)(func(ctx context.Context,documentURI lsproto.DocumentUri,LSPPosition lsproto.Position,context *lsproto.CompletionContext) (lsproto.CompletionResponse, error))
 }

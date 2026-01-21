@@ -7,6 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
+	"github.com/microsoft/typescript-go/internal/tspath"
 	dis "github.com/microsoft/typescript-go/io/dcloud/disposable"
 )
 
@@ -53,9 +54,10 @@ const (
 	UniApp ProjectKind = "uni-app"
 )
 
-type NewLS func(program *compiler.Program)*ls.LanguageService
+type NewLS func(program *compiler.Program, host ls.Host)*ls.LanguageService
 type Project struct {
 	server *Server
+	tsProjectPath tspath.Path
 
 	kind ProjectKind
 	fsPath string
@@ -67,9 +69,10 @@ type Project struct {
 }
 var _ dis.Disposable = (*Project)(nil)
 
-func NewProject(fsPath string, server *Server, newLs NewLS) *Project {
+func NewProject(server *Server, lsProjectPath tspath.Path, fsPath string,  newLs NewLS) *Project {
 	project := &Project{
 		server: server,
+		tsProjectPath: lsProjectPath,
 
 		fsPath: fsPath,
 		plugins: make(map[string]*dis.Box[Plugin]),
@@ -120,6 +123,10 @@ func (p *Project) FsPath() string {
 	return p.fsPath
 }
 
+func (p *Project) TsProjectPath() tspath.Path {
+	return p.tsProjectPath
+}
+
 func (p *Project) GetLanguageService() LanguageService {
 	return p.rootLanguageService.Value()
 }
@@ -143,8 +150,8 @@ func (p *Project) GetPlugin(pluginId string) Plugin{
 	return p.plugins[pluginId].Value()
 }
 
-func (p *Project) NewLanguageService(program *compiler.Program)* ls.LanguageService{
-	return p.newLs(program)
+func (p *Project) NewLanguageService(program *compiler.Program, host ls.Host)* ls.LanguageService{
+	return p.newLs(program, host)
 }
 
 type RoutuerLanguageService struct {
@@ -152,9 +159,13 @@ type RoutuerLanguageService struct {
 }
 var _ LanguageService = (*RoutuerLanguageService)(nil)
 
-func (r*RoutuerLanguageService)Dispose(){}
+func (r *RoutuerLanguageService) Dispose(){}
 
-func (r*RoutuerLanguageService)GetProvideCompletion(defaultLs *ls.LanguageService)(func(ctx context.Context,documentURI lsproto.DocumentUri,LSPPosition lsproto.Position,context *lsproto.CompletionContext) (lsproto.CompletionResponse, error)){
+func (r *RoutuerLanguageService) GetHost() *LanguageServiceHost{
+	return nil
+}
+
+func (r *RoutuerLanguageService) GetProvideCompletion(defaultLs *ls.LanguageService)(func(ctx context.Context,documentURI lsproto.DocumentUri,LSPPosition lsproto.Position,context *lsproto.CompletionContext) (lsproto.CompletionResponse, error)){
 	return func(ctx context.Context,documentURI lsproto.DocumentUri,LSPPosition lsproto.Position,context *lsproto.CompletionContext,) (lsproto.CompletionResponse, error){
 		plugins := r.project.GetPlugins()
 		for _, plugin := range plugins{
@@ -162,6 +173,10 @@ func (r*RoutuerLanguageService)GetProvideCompletion(defaultLs *ls.LanguageServic
 				continue
 			}
 			if pls := plugin.GetLanguageService(defaultLs); pls != nil && pls.IsEnable(documentURI){
+				// 更新autoimport数据
+				host := pls.GetHost()
+				host.UpdateAutoImport(ctx, documentURI)
+
 				if fn := pls.GetProvideCompletion(defaultLs); fn != nil{
 					return fn(ctx, documentURI, LSPPosition, context)
 				}

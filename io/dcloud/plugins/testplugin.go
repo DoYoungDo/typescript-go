@@ -19,7 +19,7 @@ import (
 
 type TestPlugin struct {
 	project *dcloud.Project
-	TestLs *dis.Box[*TestPluginLanguageService]
+	customLanguageServices map[*compiler.Program]* dis.Box[*TestPluginLanguageService]
 }
 
 var _ dcloud.Plugin = (*TestPlugin)(nil)
@@ -27,14 +27,17 @@ var _ dcloud.Plugin = (*TestPlugin)(nil)
 func NewTestPlugin(project* dcloud.Project) (dcloud.Plugin ,error) {
 	return &TestPlugin{
 		project: project,
+		customLanguageServices: make(map[*compiler.Program]*dis.Box[*TestPluginLanguageService]),
 	}, nil
 }
 
 func (p *TestPlugin) Dispose() {
-	if p.TestLs != nil {
-		p.TestLs.Delete()
-		p.TestLs = nil
+	for _, ls := range p.customLanguageServices{
+		if ls != nil{
+			ls.Delete()
+		}
 	}
+	p.customLanguageServices = make(map[*compiler.Program]*dis.Box[*TestPluginLanguageService])
 }
 
 type testProgramPlugin struct{
@@ -80,16 +83,18 @@ func (t *testCheckerPlugin) GetCheckExpressionWorker()(func(node *ast.Node, chec
 }
 
 func (p *TestPlugin) GetLanguageService(defaultLs *ls.LanguageService) dcloud.PluginLanguageService {
-	if p.TestLs == nil{
-		program := defaultLs.GetProgram()
+	program := defaultLs.GetProgram()
+	if p.customLanguageServices[program] == nil{
 		files := append(program.CommandLine().ParsedConfig.FileNames, "/Users/doyoung/OtherProject/typescript-go/io/dcloud/test/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
 		// files:=program.CommandLine().ParsedConfig.FileNames
 		programPlugin := &testProgramPlugin{
 			resolverPlugins: []module.ResolverPlugin{&testResolverPlugin{enable: true}},
 			checkerPlugins: []checker.CheckerPlugin{&testCheckerPlugin{enable: true}},
 		}
+		// 创建共用的虚拟文件系缚
+		vfs := dcloud.NewVirtualFileSystem(&CVFS{}, program)
 		opts := compiler.ProgramOptions{
-			Host: dcloud.NewCompilerHost(p.project.FsPath(),dcloud.NewVirtualFileSystem(&CVFS{}, program),"",nil,nil, program),
+			Host: dcloud.NewCompilerHost(p.project.FsPath(),vfs,"",nil,nil, program),
 			Config: tsoptions.NewParsedCommandLine(program.CommandLine().CompilerOptions(),files,tspath.ComparePathsOptions{
 				UseCaseSensitiveFileNames :false,
 				CurrentDirectory:p.project.FsPath(),
@@ -109,22 +114,23 @@ func (p *TestPlugin) GetLanguageService(defaultLs *ls.LanguageService) dcloud.Pl
 		// res.List.Items = append(res.List.Items)
 		// newRes, err := newLs.ProvideCompletion(ctx, documentURI, LSPPosition, context)
 		// return newRes, err
-		p.TestLs = dis.NewBox(&TestPluginLanguageService{
-			LanguageService: p.project.NewLanguageService(newProgram),
-			// LanguageService: ls.NewLanguageService(tspath.Path(p.project.FsPath()), newProgram, p.project.Server().GetDefaultHost()),
-			// LanguageService: defaultLs,
+
+		lsHost := dcloud.NewLanguageServiceHost(p.project, newProgram)
+
+		p.customLanguageServices[program] = dis.NewBox(&TestPluginLanguageService{
+			LanguageService: p.project.NewLanguageService(newProgram, lsHost),
 			project: p.project,
+			host: lsHost,
 		})
-	} else {
-		// program := p.TestLs.Value().GetProgram()
-		// program.UpdateProgram()
 	}
-	return  p.TestLs.Value()
+
+	return p.customLanguageServices[program].Value()
 }
 
 type TestPluginLanguageService struct {
 	*ls.LanguageService
 	project *dcloud.Project
+	host *dcloud.LanguageServiceHost
 }
 var _ dcloud.PluginLanguageService = (*TestPluginLanguageService)(nil)
 var _ dis.Disposable = (*TestPluginLanguageService)(nil)
@@ -133,6 +139,10 @@ func (l *TestPluginLanguageService) Dispose() {}
 
 func (l *TestPluginLanguageService)	IsEnable(fileName lsproto.DocumentUri)bool{
 	return true
+}
+
+func (l *TestPluginLanguageService) GetHost() *dcloud.LanguageServiceHost{
+	return l.host
 }
 
 func (l *TestPluginLanguageService)	GetProvideCompletion(defaultLs *ls.LanguageService)(func(ctx context.Context,documentURI lsproto.DocumentUri,LSPPosition lsproto.Position,context *lsproto.CompletionContext) (lsproto.CompletionResponse, error)){
