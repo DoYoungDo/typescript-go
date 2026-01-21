@@ -7,6 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
 	"github.com/microsoft/typescript-go/internal/project"
+	"github.com/microsoft/typescript-go/internal/tspath"
 	dis "github.com/microsoft/typescript-go/io/dcloud/disposable"
 )
 
@@ -27,7 +28,10 @@ func NewServer(session *project.Session) *Server {
 func (s *Server) GetProject(ctx context.Context,uri lsproto.DocumentUri) (*Project, error) {
 	p, _ := s.GetDefaultProjectAndSnapShot(uri)
 	fsPath := p.GetProgram().GetCurrentDirectory()
-	configFilePath := p.ConfigFilePath()
+	configFilePath := tspath.ToPath(fsPath, fsPath, p.GetProgram().Host().FS().UseCaseSensitiveFileNames())
+	if p.Kind == project.KindConfigured{
+		configFilePath = p.ConfigFilePath()
+	}
 
 	// 当tsgo默认获取到了项目，此处恒创建
 	if entry := s.projects[fsPath]; entry == nil || entry.Value() == nil {
