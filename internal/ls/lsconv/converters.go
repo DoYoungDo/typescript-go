@@ -77,6 +77,8 @@ func LanguageKindToScriptKind(languageID lsproto.LanguageKind) core.ScriptKind {
 		return core.ScriptKindJSX
 	case "json":
 		return core.ScriptKindJSON
+	case "uts":
+		return core.ScriptKindTS
 	default:
 		return core.ScriptKindUnknown
 	}
