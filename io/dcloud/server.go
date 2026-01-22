@@ -14,6 +14,8 @@ import (
 type Server struct {
 	session *project.Session
 
+	// 项目管理器
+	projectCollection *ProjectCollection
 	// 缓存所有项目
 	projects map[string]*dis.Box[*Project]
 }
@@ -21,11 +23,12 @@ type Server struct {
 func NewServer(session *project.Session) *Server {	
 	return &Server{
 		session: session,
+		projectCollection: newProjectCollection(),
 		projects: make(map[string]*dis.Box[*Project]),
 	}
 }
 
-func (s *Server) GetProject(ctx context.Context,uri lsproto.DocumentUri) (*Project, error) {
+func (s *Server) getProject(_ context.Context, uri lsproto.DocumentUri) (*Project, error) {
 	p, _ := s.GetDefaultProjectAndSnapShot(uri)
 	fsPath := p.GetProgram().GetCurrentDirectory()
 	configFilePath := tspath.ToPath(fsPath, fsPath, p.GetProgram().Host().FS().UseCaseSensitiveFileNames())
@@ -46,7 +49,7 @@ func (s *Server) GetProject(ctx context.Context,uri lsproto.DocumentUri) (*Proje
 }
 
 func (s *Server) GetProjectAndRootLanguageService(ctx context.Context,uri lsproto.DocumentUri) (*Project, LanguageService, error) {
-	project, err := s.GetProject(ctx, uri)
+	project, err := s.getProject(ctx, uri)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -54,12 +57,33 @@ func (s *Server) GetProjectAndRootLanguageService(ctx context.Context,uri lsprot
 	return project, project.GetLanguageService(), nil
 }
 
-func (s *Server) DidOpenFile(ctx context.Context, uri lsproto.DocumentUri, version int32, content string, languageKind lsproto.LanguageKind) {
+func (s *Server) HandleInitialize(_ context.Context, params *lsproto.InitializeParams){
+	if params.WorkspaceFolders != nil && params.WorkspaceFolders.WorkspaceFolders != nil {
+		builder := newProjectCollectionBuilder(s.projectCollection)
+		builder.OpenWorkspaceFolders(*params.WorkspaceFolders.WorkspaceFolders)
+		builder.Build()
+	}
+}
 
+func (s *Server) HandleDidChangeWorkspaceFolders(_ context.Context, params *lsproto.DidChangeWorkspaceFoldersParams){
+	if params.Event != nil{
+		builder := newProjectCollectionBuilder(s.projectCollection)
+		builder.OpenWorkspaceFolders(params.Event.Added)
+		builder.CloseWorkspaceFolders(params.Event.Removed)
+		builder.Build()
+	}
+}
+
+func (s *Server) DidOpenFile(ctx context.Context, uri lsproto.DocumentUri, version int32, content string, languageKind lsproto.LanguageKind) {
+	builder := newProjectCollectionBuilder(s.projectCollection)
+	builder.OpenFile(uri)
+	builder.Build()
 }
 
 func (s *Server) DidCloseFile(ctx context.Context, uri lsproto.DocumentUri) {
-	// 当文件时闭，需要计算是否需要清理项目
+	builder := newProjectCollectionBuilder(s.projectCollection)
+	builder.CloseFile(uri)
+	builder.Build()
 }
 
 func (s *Server) DidChangeFile(ctx context.Context, uri lsproto.DocumentUri, version int32, changes []lsproto.TextDocumentContentChangePartialOrWholeDocument) {

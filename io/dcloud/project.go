@@ -84,7 +84,7 @@ func NewProject(server *Server, lsProjectPath tspath.Path, fsPath string,  newLs
 		project: project,
 	})
 
-	project.init()
+	project.Init()
 
 	return project
 }
@@ -96,7 +96,7 @@ func (p *Project) Dispose() {
 		plugin.Delete()
 	}
 }
-func (p *Project) init()  {
+func (p *Project) Init()  {
 	// init kind 
 	// TODO
 

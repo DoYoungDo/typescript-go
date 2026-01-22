@@ -558,6 +558,7 @@ var handlers = sync.OnceValue(func() handlerMap {
 	registerNotificationHandler(handlers, lsproto.TextDocumentDidCloseInfo, (*Server).handleDidClose)
 	registerNotificationHandler(handlers, lsproto.WorkspaceDidChangeWatchedFilesInfo, (*Server).handleDidChangeWatchedFiles)
 	registerNotificationHandler(handlers, lsproto.SetTraceInfo, (*Server).handleSetTrace)
+	registerNotificationHandler(handlers, lsproto.WorkspaceDidChangeWorkspaceFoldersInfo, (*Server).handleDidChangeWorkspaceFolders)
 
 	registerLanguageServiceDocumentRequestHandler(handlers, lsproto.TextDocumentDiagnosticInfo, (*Server).handleDocumentDiagnostic)
 	registerLanguageServiceDocumentRequestHandler(handlers, lsproto.TextDocumentHoverInfo, (*Server).handleHover)
@@ -790,6 +791,8 @@ func (s *Server) handleInitialize(ctx context.Context, params *lsproto.Initializ
 	if s.initializeParams != nil {
 		return nil, lsproto.ErrorCodeInvalidRequest
 	}
+	// dcloud handle init
+	s.dcloudServer.HandleInitialize(ctx, params)
 
 	s.initStarted.Store(true)
 
@@ -902,6 +905,13 @@ func (s *Server) handleInitialize(ctx context.Context, params *lsproto.Initializ
 			},
 			CallHierarchyProvider: &lsproto.BooleanOrCallHierarchyOptionsOrCallHierarchyRegistrationOptions{
 				Boolean: ptrTo(true),
+			},
+			Workspace: &lsproto.WorkspaceOptions{
+				WorkspaceFolders: &lsproto.WorkspaceFoldersServerCapabilities{
+					ChangeNotifications: &lsproto.StringOrBoolean{
+						Boolean: ptrTo(true),
+					},
+				},
 			},
 		},
 	}
@@ -1040,6 +1050,10 @@ func (s *Server) handleDidSave(ctx context.Context, params *lsproto.DidSaveTextD
 func (s *Server) handleDidClose(ctx context.Context, params *lsproto.DidCloseTextDocumentParams) error {
 	s.dcloudServer.DidCloseFile(ctx, params.TextDocument.Uri)
 	s.session.DidCloseFile(ctx, params.TextDocument.Uri)
+	return nil
+}
+func (s *Server) handleDidChangeWorkspaceFolders(ctx context.Context, params *lsproto.DidChangeWorkspaceFoldersParams) error {
+	s.dcloudServer.HandleDidChangeWorkspaceFolders(ctx, params)
 	return nil
 }
 
