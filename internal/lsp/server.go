@@ -791,8 +791,6 @@ func (s *Server) handleInitialize(ctx context.Context, params *lsproto.Initializ
 	if s.initializeParams != nil {
 		return nil, lsproto.ErrorCodeInvalidRequest
 	}
-	// dcloud handle init
-	s.dcloudServer.HandleInitialize(ctx, params)
 
 	s.initStarted.Store(true)
 
@@ -966,7 +964,13 @@ func (s *Server) handleInitialized(ctx context.Context, params *lsproto.Initiali
 		ParseCache:  s.parseCache,
 	})
 
-	s.dcloudServer = dcloud.NewServer(s.session)
+	// create dcloud server
+	s.dcloudServer = dcloud.NewServer(&dcloud.ServerOption{
+		Cwd: s.cwd,
+		Fs: s.fs,
+	}, s.session)
+	// dcloud handle init
+	s.dcloudServer.HandleInitialized(ctx, s.initializeParams)
 
 	userPreferences, err := s.RequestConfiguration(ctx)
 	if err != nil {
@@ -1030,26 +1034,26 @@ func (s *Server) handleDidChangeWorkspaceConfiguration(ctx context.Context, para
 }
 
 func (s *Server) handleDidOpen(ctx context.Context, params *lsproto.DidOpenTextDocumentParams) error {
-	s.dcloudServer.DidOpenFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.TextDocument.Text, params.TextDocument.LanguageId)
 	s.session.DidOpenFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.TextDocument.Text, params.TextDocument.LanguageId)
+	s.dcloudServer.DidOpenFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.TextDocument.Text, params.TextDocument.LanguageId)
 	return nil
 }
 
 func (s *Server) handleDidChange(ctx context.Context, params *lsproto.DidChangeTextDocumentParams) error {
-	s.dcloudServer.DidChangeFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.ContentChanges)
 	s.session.DidChangeFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.ContentChanges)
+	s.dcloudServer.DidChangeFile(ctx, params.TextDocument.Uri, params.TextDocument.Version, params.ContentChanges)
 	return nil
 }
 
 func (s *Server) handleDidSave(ctx context.Context, params *lsproto.DidSaveTextDocumentParams) error {
-	s.dcloudServer.DidSaveFile(ctx, params.TextDocument.Uri)
 	s.session.DidSaveFile(ctx, params.TextDocument.Uri)
+	s.dcloudServer.DidSaveFile(ctx, params.TextDocument.Uri)
 	return nil
 }
 
 func (s *Server) handleDidClose(ctx context.Context, params *lsproto.DidCloseTextDocumentParams) error {
-	s.dcloudServer.DidCloseFile(ctx, params.TextDocument.Uri)
 	s.session.DidCloseFile(ctx, params.TextDocument.Uri)
+	s.dcloudServer.DidCloseFile(ctx, params.TextDocument.Uri)
 	return nil
 }
 func (s *Server) handleDidChangeWorkspaceFolders(ctx context.Context, params *lsproto.DidChangeWorkspaceFoldersParams) error {
@@ -1111,18 +1115,18 @@ func (s *Server) handleTypeDefinition(ctx context.Context, ls *ls.LanguageServic
 }
 
 func (s *Server) handleCompletion(ctx context.Context, languageService *ls.LanguageService, params *lsproto.CompletionParams) (lsproto.CompletionResponse, error) {
-	dcloudProject, dcloudLs, err := s.dcloudServer.GetProjectAndRootLanguageService(ctx, params.TextDocument.Uri)
-	if dcloudProject != nil  && dcloudLs != nil && err == nil {
-		fn := dcloudLs.GetProvideCompletion(languageService)
-		if fn != nil{
-			return fn(
-				ctx,
-				params.TextDocument.Uri,
-				params.Position,
-				params.Context,
-			)
-		}
-	}
+	// dcloudProject, dcloudLs, err := s.dcloudServer.GetProjectAndRootLanguageService(ctx, params.TextDocument.Uri)
+	// if dcloudProject != nil  && dcloudLs != nil && err == nil {
+	// 	fn := dcloudLs.GetProvideCompletion(languageService)
+	// 	if fn != nil{
+	// 		return fn(
+	// 			ctx,
+	// 			params.TextDocument.Uri,
+	// 			params.Position,
+	// 			params.Context,
+	// 		)
+	// 	}
+	// }
 
 	return languageService.ProvideCompletion(
 		ctx,

@@ -66,10 +66,12 @@ type Project struct {
 	plugins map[string]*dis.Box[Plugin]
 
 	newLs NewLS
+
+	rootFiles []string
 }
 var _ dis.Disposable = (*Project)(nil)
 
-func NewProject(server *Server, lsProjectPath tspath.Path, fsPath string,  newLs NewLS) *Project {
+func NewProject1(server *Server, lsProjectPath tspath.Path, fsPath string,  newLs NewLS) *Project {
 	project := &Project{
 		server: server,
 		tsProjectPath: lsProjectPath,
@@ -86,6 +88,11 @@ func NewProject(server *Server, lsProjectPath tspath.Path, fsPath string,  newLs
 
 	project.Init()
 
+	return project
+}
+
+func NewProject(fsPath tspath.Path) *Project{
+	project := &Project{}
 	return project
 }
 
