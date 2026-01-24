@@ -1,17 +1,16 @@
 package plugins
 
 import (
-	"strings"
 	"sync"
 
 	"github.com/microsoft/typescript-go/internal/ast"
-	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/core"
 	"github.com/microsoft/typescript-go/internal/diagnostics"
 	"github.com/microsoft/typescript-go/internal/parser"
 	"github.com/microsoft/typescript-go/internal/tsoptions"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
+	"github.com/microsoft/typescript-go/io/dcloud"
 )
 type CompilerHost struct {
 	currentDirectory    string
@@ -20,9 +19,11 @@ type CompilerHost struct {
 	extendedConfigCache tsoptions.ExtendedConfigCache
 	trace               func(msg *diagnostics.Message, args ...any)
 
-	reusedProgram		*compiler.Program
+	getCacheSourceFile  func(path tspath.Path)*ast.SourceFile
+	forceParseSourceFile bool
+	forceParseSourceFileMu sync.Mutex
 }
-var _ compiler.CompilerHost = (*CompilerHost)(nil)
+var _ dcloud.CompilerHost = (*CompilerHost)(nil)
 
 func NewCompilerHost(
 	currentDirectory string,
@@ -30,7 +31,7 @@ func NewCompilerHost(
 	defaultLibraryPath string,
 	extendedConfigCache tsoptions.ExtendedConfigCache,
 	trace func(msg *diagnostics.Message, args ...any),
-	reusedProgram *compiler.Program,
+	getCacheSourceFile  func(path tspath.Path)*ast.SourceFile,
 ) *CompilerHost {
 	if trace == nil {
 		trace = func(msg *diagnostics.Message, args ...any) {}
@@ -41,7 +42,8 @@ func NewCompilerHost(
 		defaultLibraryPath:  defaultLibraryPath,
 		extendedConfigCache: extendedConfigCache,
 		trace:               trace,
-		reusedProgram: reusedProgram,
+		getCacheSourceFile: getCacheSourceFile,
+		forceParseSourceFile:false,
 	}
 }
 
@@ -62,10 +64,9 @@ func (h *CompilerHost) Trace(msg *diagnostics.Message, args ...any) {
 }
 
 func (h *CompilerHost) GetSourceFile(opts ast.SourceFileParseOptions) *ast.SourceFile {
-	// 如果有重用的program，尝试从program中获取已经存在的sourceFile
-	if h.reusedProgram != nil {
-		if ast := h.reusedProgram.GetSourceFileByPath(opts.Path); ast != nil {
-			return ast;
+	if !h.forceParseSourceFile && h.getCacheSourceFile != nil{
+		if ast := h.getCacheSourceFile(opts.Path); ast != nil{
+			return  ast
 		}
 	}
 
@@ -79,4 +80,11 @@ func (h *CompilerHost) GetSourceFile(opts ast.SourceFileParseOptions) *ast.Sourc
 func (h *CompilerHost) GetResolvedProjectReference(fileName string, path tspath.Path) *tsoptions.ParsedCommandLine {
 	commandLine, _ := tsoptions.GetParsedCommandLineOfConfigFilePath(fileName, path, nil, nil /*optionsRaw*/, h, h.extendedConfigCache)
 	return commandLine
+}
+
+func (h *CompilerHost) SetForeceParseSourceFile(f bool){
+	h.forceParseSourceFileMu.Lock()
+	defer h.forceParseSourceFileMu.Unlock()
+
+	h.forceParseSourceFile = f
 }

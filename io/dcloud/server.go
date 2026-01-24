@@ -70,7 +70,9 @@ func (s *Server) DidCloseFile(ctx context.Context, uri lsproto.DocumentUri) {
 }
 
 func (s *Server) DidChangeFile(ctx context.Context, uri lsproto.DocumentUri, version int32, changes []lsproto.TextDocumentContentChangePartialOrWholeDocument) {
-
+	builder := newProjectCollectionBuilder(s.projectCollection)
+	builder.ChangeFile(uri, changes[0].WholeDocument.Text)
+	builder.Build()
 }
 
 func (s *Server) DidSaveFile(ctx context.Context, uri lsproto.DocumentUri) {

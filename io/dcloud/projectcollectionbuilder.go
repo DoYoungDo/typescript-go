@@ -13,6 +13,7 @@ type ProjectCollectionBuilder struct{
 	closeWorkspaceFolders map[lsproto.URI]string
 	openFiles map[lsproto.DocumentUri]bool
 	closeFiles map[lsproto.DocumentUri]bool
+	changeFiles map[lsproto.DocumentUri]string
 }
 
 func newProjectCollectionBuilder(projectCollection *ProjectCollection) *ProjectCollectionBuilder{
@@ -22,6 +23,7 @@ func newProjectCollectionBuilder(projectCollection *ProjectCollection) *ProjectC
 		closeWorkspaceFolders: make(map[lsproto.URI]string),
 		openFiles: make(map[lsproto.DocumentUri]bool),
 		closeFiles: make(map[lsproto.DocumentUri]bool),
+		changeFiles: make(map[lsproto.DocumentUri]string),
 	}
 }
 
@@ -45,6 +47,9 @@ func (p *ProjectCollectionBuilder) Build(){
 		}
 	}
 
+	// var fileChangedSummary FileChangedSummary
+	projectFileChangedSummary := make(map[*Project]FileChangedSummary)
+
 	done:
 	for uri := range p.openFiles{
 		for path, projectRef := range p.projectCollection.projects {
@@ -53,6 +58,7 @@ func (p *ProjectCollectionBuilder) Build(){
 				if pro == nil{
 					pro = NewProject(path, p.projectCollection.fs)
 					pro.rootFiles = append(pro.rootFiles, uri.FileName())
+					// updateProjectVersionAndChannel(pro, uri.Path(compareOption.UseCaseSensitiveFileNames))
 
 					p.projectCollection.projects[path] = dis.NewBox(pro)
 				}
@@ -66,6 +72,7 @@ func (p *ProjectCollectionBuilder) Build(){
 			if tspath.ContainsPath((string)(path), uri.FileName(), *compareOption){
 				pro := NewProject(path, p.projectCollection.fs)
 				pro.rootFiles = append(pro.rootFiles, uri.FileName())
+				// updateProjectVersionAndChannel(pro, uri.Path(compareOption.UseCaseSensitiveFileNames))
 
 				// 如果项目还未打开，创建一个项目
 				p.projectCollection.projects[path] = dis.NewBox(pro)
@@ -86,12 +93,32 @@ func (p *ProjectCollectionBuilder) Build(){
 			for i, rootFile := range pro.rootFiles{
 				if rootFile == uri.FileName(){
 					pro.rootFiles = append(pro.rootFiles[:i], pro.rootFiles[i + 1:]...)
+					// updateProjectVersionAndChannel(pro, uri.Path(compareOption.UseCaseSensitiveFileNames))
 					break
 				}
 			}
 		}
 
 		delete(p.projectCollection.openFileDefaultProject, path)
+	}
+
+	for uri := range p.changeFiles{
+		path := uri.Path(compareOption.UseCaseSensitiveFileNames)
+		projectPath := p.projectCollection.openFileDefaultProject[path]
+		projectRef := p.projectCollection.projects[projectPath]
+		if pro := projectRef.Value(); pro != nil{
+			// updateProjectVersionAndChannel(pro, uri.Path(compareOption.UseCaseSensitiveFileNames))
+		}
+	}
+
+	// 最后做整体更新
+	for project, sum := range projectFileChangedSummary{
+		project.version++
+		for _, ch := range project.programWatchedChannels{
+			go func ()  {
+				ch <- sum
+			}()
+		}
 	}
 
 	// TODO clean project if project has no root files
@@ -132,4 +159,8 @@ func (p *ProjectCollectionBuilder) CloseFile(uri lsproto.DocumentUri){
 		return
 	}
 	p.closeFiles[uri] = true
+}
+
+func (p *ProjectCollectionBuilder) ChangeFile(uri lsproto.DocumentUri, content string){
+	p.changeFiles[uri] = content
 }
