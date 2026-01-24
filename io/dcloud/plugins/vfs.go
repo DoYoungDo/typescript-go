@@ -1,4 +1,4 @@
-package dcloud
+package plugins
 
 import (
 	"time"

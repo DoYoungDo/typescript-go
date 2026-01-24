@@ -1,4 +1,4 @@
-package dcloud
+package plugins
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/sourcemap"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
+	"github.com/microsoft/typescript-go/io/dcloud"
 )
 
 type Config struct {
@@ -26,15 +27,18 @@ type Config struct {
 }
 
 type LanguageServiceHost struct{
-	project *Project
+	project *dcloud.Project
 	program *compiler.Program
 	converters *lsconv.Converters
 	config Config
 	registry *autoimport.Registry
 }
-var _ ls.Host = (*LanguageServiceHost)(nil)
+var (
+	_ ls.Host = (*LanguageServiceHost)(nil)
+	_ dcloud.LanguageServiceHost = (dcloud.LanguageServiceHost)(nil)
+)
 
-func NewLanguageServiceHost(project *Project, program *compiler.Program) *LanguageServiceHost{
+func NewLanguageServiceHost(project *dcloud.Project, program *compiler.Program) *LanguageServiceHost{
 	host := &LanguageServiceHost{
 		project: project,
 		program: program,
@@ -105,7 +109,7 @@ func (l *LanguageServiceHost) UpdateAutoImport(ctx context.Context, uri lsproto.
 }
 
 type registryCloneHost struct{
-	project *Project
+	project *dcloud.Project
 	program *compiler.Program
 }
 var _ autoimport.RegistryCloneHost = (*registryCloneHost)(nil)
@@ -118,8 +122,8 @@ func (r *registryCloneHost) GetCurrentDirectory() string{
 	return r.program.GetCurrentDirectory()
 }
 
-func (r *registryCloneHost) GetDefaultProject(path tspath.Path) (tspath.Path, *compiler.Program){
-	return tspath.Path(r.project.TsProjectPath()), r.program
+func (r *registryCloneHost) GetDefaultProject(_ tspath.Path) (tspath.Path, *compiler.Program){
+	return r.project.ToPath(r.project.FsPath()), r.program
 }
 
 func (r *registryCloneHost) GetProgramForProject(projectPath tspath.Path) *compiler.Program{

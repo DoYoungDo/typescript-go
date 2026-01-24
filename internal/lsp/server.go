@@ -1115,18 +1115,9 @@ func (s *Server) handleTypeDefinition(ctx context.Context, ls *ls.LanguageServic
 }
 
 func (s *Server) handleCompletion(ctx context.Context, languageService *ls.LanguageService, params *lsproto.CompletionParams) (lsproto.CompletionResponse, error) {
-	// dcloudProject, dcloudLs, err := s.dcloudServer.GetProjectAndRootLanguageService(ctx, params.TextDocument.Uri)
-	// if dcloudProject != nil  && dcloudLs != nil && err == nil {
-	// 	fn := dcloudLs.GetProvideCompletion(languageService)
-	// 	if fn != nil{
-	// 		return fn(
-	// 			ctx,
-	// 			params.TextDocument.Uri,
-	// 			params.Position,
-	// 			params.Context,
-	// 		)
-	// 	}
-	// }
+	if res, err, ok := s.dcloudServer.HandleCompletion(ctx, languageService, params); ok {
+		return res, err
+	}
 
 	return languageService.ProvideCompletion(
 		ctx,

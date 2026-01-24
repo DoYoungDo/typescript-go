@@ -51,7 +51,7 @@ func (p *ProjectCollectionBuilder) Build(){
 			if tspath.ContainsPath((string)(path), uri.FileName(), *compareOption){
 				pro := projectRef.Value()
 				if pro == nil{
-					pro = NewProject(path)
+					pro = NewProject(path, p.projectCollection.fs)
 					pro.rootFiles = append(pro.rootFiles, uri.FileName())
 
 					p.projectCollection.projects[path] = dis.NewBox(pro)
@@ -64,7 +64,7 @@ func (p *ProjectCollectionBuilder) Build(){
 
 		for path := range p.projectCollection.preparedProjectPath {
 			if tspath.ContainsPath((string)(path), uri.FileName(), *compareOption){
-				pro := NewProject(path)
+				pro := NewProject(path, p.projectCollection.fs)
 				pro.rootFiles = append(pro.rootFiles, uri.FileName())
 
 				// 如果项目还未打开，创建一个项目

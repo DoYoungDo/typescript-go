@@ -1,6 +1,9 @@
-package dcloud
+package plugins
 
 import (
+	"strings"
+	"sync"
+
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/core"
@@ -38,6 +41,7 @@ func NewCompilerHost(
 		defaultLibraryPath:  defaultLibraryPath,
 		extendedConfigCache: extendedConfigCache,
 		trace:               trace,
+		reusedProgram: reusedProgram,
 	}
 }
 

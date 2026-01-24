@@ -51,11 +51,12 @@ func (p *ProjectCollection) Projects() []*Project{
 }
 
 func (p *ProjectCollection) GetProjectByPath(projectPath tspath.Path) *Project{
-	for path, project := range p.projects {
-		if pro := project.Value(); path == projectPath {
-			return pro
-		}
-	}
+	return p.projects[projectPath].Value()
+}
 
-return nil
+func (p *ProjectCollection) GetProjectByFileName(fileName tspath.Path) *Project{
+	if projectPath, ok := p.openFileDefaultProject[fileName]; ok{
+		return p.GetProjectByPath(projectPath)
+	}
+	return nil
 }

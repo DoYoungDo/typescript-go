@@ -2,106 +2,45 @@ package dcloud
 
 import (
 	"context"
-	"sync"
 
-	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
 	"github.com/microsoft/typescript-go/internal/tspath"
+	"github.com/microsoft/typescript-go/internal/vfs"
 	dis "github.com/microsoft/typescript-go/io/dcloud/disposable"
 )
-
-type PluginLanguageService interface{
-	LanguageService
-	IsEnable(fileName lsproto.DocumentUri)bool
-}
-type Plugin interface{
-	dis.Disposable
-	GetLanguageService(defaultLs *ls.LanguageService) PluginLanguageService
-}
-
-type PluginCreator func(project *Project) (Plugin, error)
-var pluginHandle = sync.OnceValues(func()(func(string, PluginCreator), func() map[string]PluginCreator){
-	creators := make(map[string]PluginCreator)
-	var mu sync.Mutex
-
-	register := func(id string, creator PluginCreator){
-		mu.Lock()
-		defer mu.Unlock()
-		creators[id] = creator
-	}
-
-	get := func() map[string]PluginCreator{
-		mu.Lock()
-		defer mu.Unlock()
-		return creators
-	}
-
-	return register, get
-})
-func InstallPluginCreator(pluginId string, creator PluginCreator) {
-	register, _ := pluginHandle()
-	register(pluginId, creator)
-}
-func GetPluginCreators() map[string]PluginCreator {
-	_, get := pluginHandle()
-	return get()
-}
-
 type ProjectKind string
 const (
 	Web ProjectKind = "web"
 	UniApp ProjectKind = "uni-app"
 )
 
-type NewLS func(program *compiler.Program, host ls.Host)*ls.LanguageService
 type Project struct {
-	server *Server
-	tsProjectPath tspath.Path
-
 	kind ProjectKind
 	fsPath string
+	rootFiles []string
 
-	rootLanguageService *dis.Box[*RoutuerLanguageService]
 	plugins map[string]*dis.Box[Plugin]
 
-	newLs NewLS
-
-	rootFiles []string
+	fs vfs.FS
 }
 var _ dis.Disposable = (*Project)(nil)
 
-func NewProject1(server *Server, lsProjectPath tspath.Path, fsPath string,  newLs NewLS) *Project {
+func NewProject(fsPath tspath.Path, fs vfs.FS) *Project{
 	project := &Project{
-		server: server,
-		tsProjectPath: lsProjectPath,
-
-		fsPath: fsPath,
+		fsPath: string(fsPath),
 		plugins: make(map[string]*dis.Box[Plugin]),
-
-		newLs: newLs,
+		fs: fs,
 	}
-
-	project.rootLanguageService = dis.NewBox(&RoutuerLanguageService{
-		project: project,
-	})
-
 	project.Init()
-
-	return project
-}
-
-func NewProject(fsPath tspath.Path) *Project{
-	project := &Project{}
 	return project
 }
 
 func (p *Project) Dispose() {
-	p.rootLanguageService.Delete()
-
 	for _, plugin := range p.plugins {
 		plugin.Delete()
 	}
+	p.plugins = nil
 }
 func (p *Project) Init()  {
 	// init kind 
@@ -118,10 +57,6 @@ func (p *Project) Init()  {
 	}
 }
 
-func (p *Project) Server() *Server {
-	return p.server
-}
-
 func (p *Project) Kind() ProjectKind {
 	return p.kind
 }
@@ -130,12 +65,24 @@ func (p *Project) FsPath() string {
 	return p.fsPath
 }
 
-func (p *Project) TsProjectPath() tspath.Path {
-	return p.tsProjectPath
+func (p *Project) GetRootFiles() []string{
+	rootFiles := make([]string, len(p.rootFiles))
+	copy(rootFiles, p.rootFiles)
+	return rootFiles
 }
 
-func (p *Project) GetLanguageService() LanguageService {
-	return p.rootLanguageService.Value()
+func (p *Project) GetLanguageService(ctx context.Context,defaultLs *ls.LanguageService, documentURI lsproto.DocumentUri) LanguageService {
+	for _, pluginRef := range p.plugins{
+		if plugin := pluginRef.Value(); plugin != nil {
+			if pls := plugin.GetLanguageService(ctx, defaultLs, documentURI); pls != nil{
+				// 更新autoimport数据
+				host := pls.GetHost()
+				host.UpdateAutoImport(ctx, documentURI)
+				return pls
+			}
+		}
+	}
+	return nil
 }
 
 func (p *Project) GetPlugins() []Plugin{
@@ -157,38 +104,10 @@ func (p *Project) GetPlugin(pluginId string) Plugin{
 	return p.plugins[pluginId].Value()
 }
 
-func (p *Project) NewLanguageService(program *compiler.Program, host ls.Host)* ls.LanguageService{
-	return p.newLs(program, host)
+func (p *Project) ToPath(path string) tspath.Path{
+	return tspath.ToPath(path, p.fsPath, p.fs.UseCaseSensitiveFileNames())
 }
 
-type RoutuerLanguageService struct {
-	project *Project
-}
-var _ LanguageService = (*RoutuerLanguageService)(nil)
-
-func (r *RoutuerLanguageService) Dispose(){}
-
-func (r *RoutuerLanguageService) GetHost() *LanguageServiceHost{
-	return nil
-}
-
-func (r *RoutuerLanguageService) GetProvideCompletion(defaultLs *ls.LanguageService)(func(ctx context.Context,documentURI lsproto.DocumentUri,LSPPosition lsproto.Position,context *lsproto.CompletionContext) (lsproto.CompletionResponse, error)){
-	return func(ctx context.Context,documentURI lsproto.DocumentUri,LSPPosition lsproto.Position,context *lsproto.CompletionContext,) (lsproto.CompletionResponse, error){
-		plugins := r.project.GetPlugins()
-		for _, plugin := range plugins{
-			if(plugin == nil){
-				continue
-			}
-			if pls := plugin.GetLanguageService(defaultLs); pls != nil && pls.IsEnable(documentURI){
-				// 更新autoimport数据
-				host := pls.GetHost()
-				host.UpdateAutoImport(ctx, documentURI)
-
-				if fn := pls.GetProvideCompletion(defaultLs); fn != nil{
-					return fn(ctx, documentURI, LSPPosition, context)
-				}
-			}
-		}
-		return defaultLs.ProvideCompletion(ctx, documentURI, LSPPosition, context)
-	}
+func (p *Project) FS() vfs.FS{
+	return p.fs
 }
