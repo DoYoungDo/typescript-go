@@ -24,14 +24,20 @@ type TestPlugin struct {
 	// lastVersion string
 	lastProgram *compiler.Program
 	lastLs *TestPluginLanguageService
+
+	androidLibMap AndroidLibMap
 }
 
 var _ dcloud.Plugin = (*TestPlugin)(nil)
 
 func NewTestPlugin(project* dcloud.Project) (dcloud.Plugin ,error) {
-	return &TestPlugin{
+	plugin := &TestPlugin{
 		project: project,
-	}, nil
+	}
+	
+	data, _ := project.FS().ReadFile("/Users/doyoung/Project/uts-development-android/uts-types/app-android/typeMap.json")
+	json.Unmarshal([]byte(data), &plugin.androidLibMap)
+	return plugin, nil
 }
 
 func (p *TestPlugin) Dispose() {
@@ -52,10 +58,22 @@ func (p *TestPlugin) GetLanguageService(ctx context.Context, defaultLs *ls.Langu
 
 	program := p.project.CreateListenedProgram(dcloud.ProgramOptions{
 		GetFiles:func() []string {
-			return append(p.project.GetRootFiles(), "/Users/doyoung/OtherProject/typescript-go/io/dcloud/test/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
+			files := append(p.project.GetRootFiles(), "/Users/doyoung/OtherProject/typescript-go/io/dcloud/test/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
+			fs := p.project.FS()
+			for _, name := range p.androidLibMap.DefaultImport{
+				dirs := strings.Split(name, ".")
+				name := dirs[len(dirs) -1]
+				dirs = dirs[:len(dirs) -1]
+				dir := strings.Join(dirs, "/")
+				filePath := "/Users/doyoung/Project/uts-development-android/uts-types/app-android/" + dir + "/" + name + ".d.ts"
+				if fs.FileExists(filePath){
+					files = append(files, filePath)
+				}
+			}
+			return files
 		},
 		Plugin: &testProgramPlugin{
-		resolverPlugins: []module.ResolverPlugin{newTestResolverPlugin(p.project)},
+		resolverPlugins: []module.ResolverPlugin{newTestResolverPlugin(p.project, &p.androidLibMap)},
 		checkerPlugins: []checker.CheckerPlugin{&testCheckerPlugin{enable: true}},
 	},
 		DefaultProgram: defaultLs.GetProgram(),
@@ -95,32 +113,22 @@ func (t *testProgramPlugin) GetCheckerPlugins() []checker.CheckerPlugin{
 	return t.checkerPlugins
 }
 
-type TreeInfo map[string]TreeInfo
-type MapInfo map[string]struct{
-	File string `json:"file"`
-	Name string `json:"name"`
-	Tp string `json:"type"`
-}
-type AndroidLibMap struct{
-	Tree TreeInfo `json:"tree"`
-	Map MapInfo `json:"map"`
-}
 
 type testResolverPlugin struct{
 	fs vfs.FS
 	enable bool
-	androidLibMap AndroidLibMap
+
+	androidLibMap *AndroidLibMap
 }
 var _ module.ResolverPlugin = (*testResolverPlugin)(nil)
 
-func newTestResolverPlugin(project *dcloud.Project) *testResolverPlugin{
+func newTestResolverPlugin(project *dcloud.Project,androidLibMap *AndroidLibMap) *testResolverPlugin{
 	plugin := &testResolverPlugin{
 		fs: project.FS(),
 		enable: true,
+		androidLibMap: androidLibMap,
 	}
 
-	data, _ := project.FS().ReadFile("/Users/doyoung/Project/uts-development-android/uts-types/app-android/typeMap.json")
-	json.Unmarshal([]byte(data), &plugin.androidLibMap)
 	return plugin
 }
 
@@ -207,4 +215,16 @@ func (vfs *CVFS) ReadFile(path string) (contents string, ok bool) {
 		return "declare const DCloud_virtual: any;", true
 	}
 	return "", false
+}
+
+type TreeInfo map[string]TreeInfo
+type MapInfo map[string]struct{
+	File string `json:"file"`
+	Name string `json:"name"`
+	Tp string `json:"type"`
+}
+type AndroidLibMap struct{
+	DefaultImport []string `json:defaultImport`
+	Tree TreeInfo `json:"tree"`
+	Map MapInfo `json:"map"`
 }
