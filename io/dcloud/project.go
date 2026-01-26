@@ -177,6 +177,7 @@ func (p *Project) CreateListenedProgram(opt ProgramOptions, update func(program 
 				p.programWatchedChannelsGroup.Done()
 			}()
 			newHost := NewCompilerHost(p.FsPath(),p.FS() ,"",nil,nil, func(path tspath.Path)*ast.SourceFile{
+				// 直接复用原始program数据，因为原始program已经更新
 				if ast := summary.baseProgram.GetSourceFileByPath(path); ast != nil{
 					return ast;
 				}
