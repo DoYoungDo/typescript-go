@@ -40,39 +40,39 @@ func NewServer(opt *ServerOption, session *project.Session) *Server {
 	return server
 }
 
-func (s *Server) HandleInitialized(_ context.Context, params *lsproto.InitializeParams){
+func (s *Server) HandleInitialized(ctx context.Context, params *lsproto.InitializeParams){
 	if params.WorkspaceFolders != nil && params.WorkspaceFolders.WorkspaceFolders != nil {
 		builder := newProjectCollectionBuilder(s.projectCollection)
 		builder.OpenWorkspaceFolders(*params.WorkspaceFolders.WorkspaceFolders)
-		builder.Build()
+		builder.Build(ctx, s.session)
 	}
 }
 
-func (s *Server) HandleDidChangeWorkspaceFolders(_ context.Context, params *lsproto.DidChangeWorkspaceFoldersParams){
+func (s *Server) HandleDidChangeWorkspaceFolders(ctx context.Context, params *lsproto.DidChangeWorkspaceFoldersParams){
 	if params.Event != nil{
 		builder := newProjectCollectionBuilder(s.projectCollection)
 		builder.OpenWorkspaceFolders(params.Event.Added)
 		builder.CloseWorkspaceFolders(params.Event.Removed)
-		builder.Build()
+		builder.Build(ctx, s.session)
 	}
 }
 
 func (s *Server) DidOpenFile(ctx context.Context, uri lsproto.DocumentUri, version int32, content string, languageKind lsproto.LanguageKind) {
 	builder := newProjectCollectionBuilder(s.projectCollection)
 	builder.OpenFile(uri)
-	builder.Build()
+	builder.Build(ctx, s.session)
 }
 
 func (s *Server) DidCloseFile(ctx context.Context, uri lsproto.DocumentUri) {
 	builder := newProjectCollectionBuilder(s.projectCollection)
 	builder.CloseFile(uri)
-	builder.Build()
+	builder.Build(ctx, s.session)
 }
 
 func (s *Server) DidChangeFile(ctx context.Context, uri lsproto.DocumentUri, version int32, changes []lsproto.TextDocumentContentChangePartialOrWholeDocument) {
 	builder := newProjectCollectionBuilder(s.projectCollection)
-	builder.ChangeFile(uri, changes[0].WholeDocument.Text)
-	builder.Build()
+	builder.ChangeFile(uri)
+	builder.Build(ctx, s.session)
 }
 
 func (s *Server) DidSaveFile(ctx context.Context, uri lsproto.DocumentUri) {

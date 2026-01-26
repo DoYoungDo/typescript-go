@@ -5,9 +5,12 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/microsoft/typescript-go/internal/ast"
+	"github.com/microsoft/typescript-go/internal/collections"
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
+	"github.com/microsoft/typescript-go/internal/tsoptions"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
 	dis "github.com/microsoft/typescript-go/io/dcloud/disposable"
@@ -18,14 +21,11 @@ const (
 	UniApp ProjectKind = "uni-app"
 )
 
-type FileHandle struct{
-	path tspath.Path
-	content string
-}
 type FileChangedSummary struct{
-	closedFiles []FileHandle
-	openedFiles []FileHandle
-	changedFiles []FileHandle
+	closedFiles collections.Set[tspath.Path]
+	openedFiles collections.Set[tspath.Path]
+	changedFiles collections.Set[tspath.Path]
+	baseProgram *compiler.Program
 }
 
 type Project struct {
@@ -148,8 +148,21 @@ type ProgramOptions struct{
 	Plugin compiler.ProgramPlugin
 	DefaultProgram *compiler.Program
 }
-func (p *Project) CreateListenedProgram(opt compiler.ProgramOptions, update func(program *compiler.Program, file FileHandle)) *compiler.Program{
-	program := compiler.NewProgram(opt)
+func (p *Project) CreateListenedProgram(opt ProgramOptions, update func(program *compiler.Program, changes FileChangedSummary)) *compiler.Program{
+	options := compiler.ProgramOptions{
+		Host: NewCompilerHost(p.FsPath(),p.FS() ,"",nil,nil, func(path tspath.Path)*ast.SourceFile{
+			if ast := opt.DefaultProgram.GetSourceFileByPath(path); ast != nil{
+				return ast;
+			}
+			return nil
+		}),
+		Config: tsoptions.NewParsedCommandLine(opt.DefaultProgram.CommandLine().CompilerOptions(),opt.GetFiles(),tspath.ComparePathsOptions{
+			UseCaseSensitiveFileNames :p.FS().UseCaseSensitiveFileNames(),
+			CurrentDirectory:p.FsPath(),
+		}),
+		Plugins: []compiler.ProgramPlugin{opt.Plugin},
+	}
+	program := compiler.NewProgram(options)
 
 	ch := make(chan FileChangedSummary, 5)
 
@@ -158,23 +171,40 @@ func (p *Project) CreateListenedProgram(opt compiler.ProgramOptions, update func
 	p.programWatchedChannels = append(p.programWatchedChannels, ch)
 	
 	go func(){
-		for changed := range ch{
+		for summary := range ch{
 			defer func ()  {
 				close(ch)
 				p.programWatchedChannelsGroup.Done()
 			}()
-			if len(changed.closedFiles) > 0{
+			newHost := NewCompilerHost(p.FsPath(),p.FS() ,"",nil,nil, func(path tspath.Path)*ast.SourceFile{
+				if ast := summary.baseProgram.GetSourceFileByPath(path); ast != nil{
+					return ast;
+				}
+				return nil
+			})
+			newProgram := program
 
+			// 如果关闭了文件需要手动再创建一个program
+			if summary.closedFiles.Len() > 0 {
+				newOptions := compiler.ProgramOptions{
+					Host:newHost,
+					Config: tsoptions.NewParsedCommandLine(summary.baseProgram.CommandLine().CompilerOptions(),opt.GetFiles(),tspath.ComparePathsOptions{
+						UseCaseSensitiveFileNames :p.FS().UseCaseSensitiveFileNames(),
+						CurrentDirectory:p.FsPath(),
+					}),
+					Plugins: []compiler.ProgramPlugin{opt.Plugin},
+				}
+				newProgram = compiler.NewProgram(newOptions)
+			}else{
+				for file := range summary.openedFiles.UnionedWith(&summary.changedFiles).Keys() {
+					newProgram, _ = newProgram.UpdateProgram(file, newHost)
+				}
 			}
-			// if host, ok := opt.Host.(CompilerHost); ok{
-			// 	host.SetForeceParseSourceFile(true)
-			// 	defer host.SetForeceParseSourceFile(false)
-			// }
-
-			// newProgram, _ := program.UpdateProgram(file.path, opt.Host)
-			// if update != nil{
-			// 	update(newProgram, file)
-			// }
+		
+			if update != nil{
+				newProgram.BindSourceFiles()
+				update(newProgram, summary)
+			}
 		}
 	}()
 

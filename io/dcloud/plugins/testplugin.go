@@ -12,7 +12,6 @@ import (
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
 	"github.com/microsoft/typescript-go/internal/module"
-	"github.com/microsoft/typescript-go/internal/tsoptions"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
 	"github.com/microsoft/typescript-go/io/dcloud"
@@ -43,59 +42,44 @@ func (p *TestPlugin) GetLanguageService(ctx context.Context, defaultLs *ls.Langu
 		return nil
 	}
 
-	if p.lastProgram != nil && p.lastLs != nil{
-		return p.lastLs
+	if p.lastProgram != nil{
+		if p.lastLs != nil && p.lastLs.GetProgram() == p.lastProgram{
+			return p.lastLs
+		}
+
+		return p.updateLs()
 	}
 
-	program := core.IfElse(p.lastProgram != nil, p.lastProgram, defaultLs.GetProgram()) 
-	// if p.customLanguageServices[program] == nil{
-	files := append(p.project.GetRootFiles(), "/Users/doyoung/OtherProject/typescript-go/io/dcloud/test/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
-	// files:=program.CommandLine().ParsedConfig.FileNames
-	programPlugin := &testProgramPlugin{
+	program := p.project.CreateListenedProgram(dcloud.ProgramOptions{
+		GetFiles:func() []string {
+			return append(p.project.GetRootFiles(), "/Users/doyoung/OtherProject/typescript-go/io/dcloud/test/app.d.ts", "/Users/doyoung/OtherProject/typescript-go/internal/io/dcloud/app_virtual.d.ts")
+		},
+		Plugin: &testProgramPlugin{
 		resolverPlugins: []module.ResolverPlugin{newTestResolverPlugin(p.project)},
 		checkerPlugins: []checker.CheckerPlugin{&testCheckerPlugin{enable: true}},
-	}
-	// 创建共用的虚拟文件系缚
-	// vfs := NewVirtualFileSystem(&CVFS{}, program)
-	opts := compiler.ProgramOptions{
-		Host: NewCompilerHost(p.project.FsPath(),p.project.FS() ,"",nil,nil, func(path tspath.Path)*ast.SourceFile{
-			if ast := defaultLs.GetProgram().GetSourceFileByPath(path); ast != nil{
-				return ast;
-			}
-			if p.lastProgram != nil{
-				if ast := p.lastProgram.GetSourceFileByPath(path); ast != nil{
-					return  ast
-				}
-			}
-			return nil
-		}),
-		Config: tsoptions.NewParsedCommandLine(program.CommandLine().CompilerOptions(),files,tspath.ComparePathsOptions{
-			UseCaseSensitiveFileNames :p.project.FS().UseCaseSensitiveFileNames(),
-			CurrentDirectory:p.project.FsPath(),
-		}),
-		// UseSourceOfProjectReference :program.UseCaseSensitiveFileNames(),
-		// SingleThreaded:program.Options().SingleThreaded,
-		// CreateCheckerPool:program.CreateCheckerPool,
-		// TypingsLocation:program.GetGlobalTypingsCacheLocation(),
-		// ProjectName:program.GetProjectName(),
-		Plugins: []compiler.ProgramPlugin{programPlugin},
-	}
-	newProgram := p.project.CreateListenedProgram(opts, func(program *compiler.Program, _ tspath.Path) {
+	},
+		DefaultProgram: defaultLs.GetProgram(),
+	}, func(program *compiler.Program, _ dcloud.FileChangedSummary) {
 		p.lastProgram = program
 	})
 
-	lsHost := NewLanguageServiceHost(p.project, newProgram)
 
-	LS := &TestPluginLanguageService{
-		LanguageService: ls.NewLanguageService(tspath.Path(p.project.FsPath()), newProgram, lsHost),
-		project: p.project,
-		host: lsHost,
+	p.lastProgram = program
+	return p.updateLs()
+}
+
+func (p *TestPlugin) updateLs() *TestPluginLanguageService{
+	if p.lastProgram != nil {
+		lsHost := NewLanguageServiceHost(p.project, p.lastProgram)
+		LS := &TestPluginLanguageService{
+			LanguageService: ls.NewLanguageService(tspath.Path(p.project.FsPath()), p.lastProgram, lsHost),
+			project: p.project,
+			host: lsHost,
+		}
+		p.lastLs = LS
 	}
 
-	p.lastProgram = newProgram
-	p.lastLs = LS
-
-	return LS
+	return p.lastLs
 }
 
 
