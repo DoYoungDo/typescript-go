@@ -7,6 +7,8 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e
 	github.com/google/go-cmp v0.7.0
 	github.com/peter-evans/patience v0.3.0
+	github.com/tree-sitter/go-tree-sitter v0.24.0
+	github.com/tree-sitter/tree-sitter-html v0.20.5-0.20240818004741-d11201a263d0
 	github.com/zeebo/xxh3 v1.0.2
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.39.0
@@ -18,6 +20,7 @@ require (
 require (
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/matryer/moq v0.6.0 // indirect
+	github.com/mattn/go-pointer v0.0.1 // indirect
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect
 	mvdan.cc/gofumpt v0.9.2 // indirect

@@ -48,6 +48,45 @@ func (p *TestPlugin) GetLanguageService(ctx context.Context, defaultLs *ls.Langu
 		return nil
 	}
 
+	// code, ok := p.project.FS().ReadFile("/Users/doyoung/Project/hbuilderx-language-services-tsgo-tests/uniapp-x-default/pages/index/index.uvue")
+	// if !ok{
+
+	// }
+
+	// parser := go_tree_sitter.NewParser()
+	// defer parser.Close()
+	// parser.SetLanguage(go_tree_sitter.NewLanguage(tree_sitter_html.Language()))
+
+	// tree := parser.Parse([]byte(code), nil)
+	// defer tree.Close()
+
+	// cursor := tree.Walk()
+	// root := tree.RootNode()
+	// if root != nil{
+	// 	s := root.ToSexp()
+	// 	if s != ""{}
+	// 	cc := root.ChildCount()
+	// 	if cc > 0{}
+	// 	var walk func(node *go_tree_sitter.Node)
+	// 	walk = func(node *go_tree_sitter.Node) {
+	// 		if node == nil{
+	// 			return
+	// 		}
+
+	// 		text := node.Utf8Text([]byte(code))
+	// 		kd := node.Kind()
+	// 		gn := node.GrammarName()
+	// 		if text != "" || gn != "" || kd != ""{}
+
+	// 		if node.ChildCount() > 0{
+	// 			for _, child := range node.Children(cursor){
+	// 				walk(&child)
+	// 			}
+	// 		}
+	// 	}
+	// 	walk(root)
+	// }
+
 	if p.lastProgram != nil{
 		if p.lastLs != nil && p.lastLs.GetProgram() == p.lastProgram{
 			return p.lastLs
