@@ -56,7 +56,7 @@ func (p *TestPlugin) GetLanguageService(ctx context.Context, defaultLs *ls.Langu
 	if p.cls == nil{
 		p.cls = NewConcurrentLS(p.project, defaultLs, &p.androidLibMap, &p.iosLibMap)
 	}
-	p.cls.SyncLs()
+	p.cls.SyncLs(documentURI)
 	return p.cls 
 
 	// code, ok := p.project.FS().ReadFile("/Users/doyoung/Project/hbuilderx-language-services-tsgo-tests/uniapp-x-default/pages/index/index.uvue")
@@ -303,7 +303,7 @@ func NewConcurrentLS(pro *dcloud.Project, defaultLs *ls.LanguageService, android
 				return files
 			},
 			Plugin: &testProgramPlugin{
-			resolverPlugins: []module.ResolverPlugin{/* newTestResolverPlugin(pro, &androidLid.LibMap),newTestResolverPlugin(pro, &iosLib.LibMap) */},
+			resolverPlugins: []module.ResolverPlugin{newTestResolverPlugin(pro, &androidLid.LibMap),newTestResolverPlugin(pro, &iosLib.LibMap)},
 			checkerPlugins: []checker.CheckerPlugin{&testCheckerPlugin{enable: true}},
 		},
 			DefaultProgram: defaultLs.GetProgram(),
@@ -341,7 +341,7 @@ func (*ConcurrentLanguageService) Dispose(){}
 func (c *ConcurrentLanguageService) GetHost() dcloud.LanguageServiceHost{
 	return c.host
 }
-func (c *ConcurrentLanguageService) SyncLs(){
+func (c *ConcurrentLanguageService) SyncLs(uri lsproto.DocumentUri){
 	start := time.Now()
 	defer func ()  {
 		println("create ls spend:", time.Since(start).Milliseconds())
@@ -352,21 +352,17 @@ func (c *ConcurrentLanguageService) SyncLs(){
 		lastLs := msl.lastLs
 
 		if lastProgram != nil {
-			if lastLs != nil && lastLs.GetProgram() == lastProgram {
-
-			}else{
-				lsHost := NewLanguageServiceHost(c.project, lastProgram)
-				lastLs = &TestPluginLanguageService{
-					LanguageService: ls.NewLanguageService(c.project.ToPath(c.project.FsPath()), lastProgram, lsHost),
-					project: c.project,
-					host: lsHost,
-				}
-				// 重新赋值
-				c.multLs[name] = struct{
-					lastProgram *compiler.Program
-					lastLs *TestPluginLanguageService
-				}{lastProgram: lastProgram, lastLs: lastLs}
+			lsHost := NewLanguageServiceHost(c.project, lastProgram)
+			lastLs = &TestPluginLanguageService{
+				LanguageService: ls.NewLanguageService(c.project.ToPath(c.project.FsPath()), lastProgram, lsHost, uri.FileName()),
+				project: c.project,
+				host: lsHost,
 			}
+			// 重新赋值
+			c.multLs[name] = struct{
+				lastProgram *compiler.Program
+				lastLs *TestPluginLanguageService
+			}{lastProgram: lastProgram, lastLs: lastLs}
 		}
 	}
 }

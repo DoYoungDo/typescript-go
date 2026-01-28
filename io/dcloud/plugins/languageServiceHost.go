@@ -5,8 +5,6 @@ import (
 
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/compiler"
-	"github.com/microsoft/typescript-go/internal/core"
-	"github.com/microsoft/typescript-go/internal/format"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/ls/autoimport"
 	"github.com/microsoft/typescript-go/internal/ls/lsconv"
@@ -19,19 +17,12 @@ import (
 	"github.com/microsoft/typescript-go/io/dcloud"
 )
 
-type Config struct {
-	tsUserPreferences *lsutil.UserPreferences
-	// jsUserPreferences *lsutil.UserPreferences
-	formatOptions *format.FormatCodeSettings
-	// tsserverOptions
-}
-
 type LanguageServiceHost struct{
 	project *dcloud.Project
 	program *compiler.Program
 	converters *lsconv.Converters
-	config Config
 	registry *autoimport.Registry
+	allUserPreferences *lsutil.UserConfig
 }
 var (
 	_ ls.Host = (*LanguageServiceHost)(nil)
@@ -42,12 +33,12 @@ func NewLanguageServiceHost(project *dcloud.Project, program *compiler.Program) 
 	host := &LanguageServiceHost{
 		project: project,
 		program: program,
-		config: Config{},
+		allUserPreferences: lsutil.NewUserConfig(nil),
 	}
 	host.converters = lsconv.NewConverters(lsproto.PositionEncodingKindUTF8, host.LSPLineMap)
 	host.registry = autoimport.NewRegistry(func(fileName string) tspath.Path{
 		return tspath.ToPath(fileName, program.GetCurrentDirectory(), host.UseCaseSensitiveFileNames())
-	})
+	}, host.allUserPreferences.TS())
 
 	return host
 }
@@ -68,12 +59,8 @@ func (l *LanguageServiceHost) Converters() *lsconv.Converters{
 	return l.converters
 }
 
-func (l *LanguageServiceHost) UserPreferences() *lsutil.UserPreferences{
-	return core.IfElse(l.config.tsUserPreferences != nil, l.config.tsUserPreferences, l.config.tsUserPreferences.OrDefault())
-}
-
-func (l *LanguageServiceHost) FormatOptions() *format.FormatCodeSettings{
-	return l.config.formatOptions
+func (l *LanguageServiceHost) GetPreferences(activeFile string) *lsutil.UserPreferences{
+	return l.allUserPreferences.GetPreferences(activeFile)
 }
 
 func (l *LanguageServiceHost) GetECMALineInfo(fileName string) *sourcemap.ECMALineInfo{
