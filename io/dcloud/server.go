@@ -2,6 +2,7 @@ package dcloud
 
 import (
 	"context"
+	"time"
 
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
@@ -80,10 +81,22 @@ func (s *Server) DidSaveFile(ctx context.Context, uri lsproto.DocumentUri) {
 }
 
 func (s *Server) HandleCompletion(ctx context.Context, languageService *ls.LanguageService, params *lsproto.CompletionParams) (lsproto.CompletionResponse, error, bool) {
+	start := time.Now()
+	defer func ()  {
+		println("HandleCompletion spend", time.Since(start).Milliseconds() , `\n`)
+	}()
+
 	project := s.projectCollection.GetProjectByFileName(params.TextDocumentURI().Path(s.fs.UseCaseSensitiveFileNames()))
+	println("HandleCompletion- get project spend", time.Since(start).Milliseconds() , `\n`)
+	tmpStart := time.Now()
 	if ls := project.GetLanguageService(ctx, languageService, params.TextDocument.Uri); ls != nil{
+		println("HandleCompletion- get ls spend", time.Since(tmpStart).Milliseconds() , `\n`)
+		tmpStart = time.Now()
 		if fn := ls.GetProvideCompletion(); fn != nil{
+			println("HandleCompletion- get ls call spend", time.Since(tmpStart).Milliseconds() , `\n`)
+			tmpStart = time.Now()
 			res, err := fn(ctx, params.TextDocument.Uri, params.Position, params.Context)
+			println("HandleCompletion- ls call spend", time.Since(tmpStart).Milliseconds() , `\n`)
 			return res, err, true
 		}
 	}
